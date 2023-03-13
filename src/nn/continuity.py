@@ -4,7 +4,7 @@ import torch
 def continuity_constraint(x1: torch.Tensor, x2: torch.Tensor,
                           f: torch.nn.Module) -> torch.Tensor:
     '''
-    $||f(x1) - f(x2) - <\nabla_x1 f(x1), x2 - x1>||_2^2$
+    $||f(x1) - f(x2) - <\nabla_x1 f(x1), x1 - x2>||_2^2$
     '''
 
     # Track gradient for computing $\nabla_x1 f(x1)$
