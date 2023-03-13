@@ -136,7 +136,7 @@ def train(config: AttributeHashmap) -> None:
 
     os.makedirs(config.checkpoint_dir, exist_ok=True)
     os.makedirs(config.log_dir, exist_ok=True)
-    log_path = '%s/%s.log' % (config.log_dir, config.dataset)
+    log_path = '%s/%s.log' % (config.log_dir, config.config_file_name)
 
     # Log the config.
     config_str = 'Config: \n'
@@ -177,7 +177,7 @@ def train(config: AttributeHashmap) -> None:
         '''
         model.train()
         correct, total_count_loss, total_count_acc = 0, 0, 0
-        for batch_idx, (x, y_true) in enumerate(tqdm(train_loader)):
+        for _, (x, y_true) in enumerate(tqdm(train_loader)):
             x_aug1, x_aug2 = x
             B = x_aug1.shape[0]
             assert config.in_channels in [1, 3]
@@ -192,8 +192,11 @@ def train(config: AttributeHashmap) -> None:
             y_pred1, y_pred2 = model(x_aug1), model(x_aug2)
 
             loss = 1/2 * (loss_fn_classification(y_pred1, y_true) + \
-                          loss_fn_classification(y_pred2, y_true)) + \
-                config.continuity_weighting * continuity_constraint(x_aug1, x_aug2, model)
+                          loss_fn_classification(y_pred2, y_true))
+
+            if config.continuity_lambda > 0:
+                loss = loss + \
+                    config.continuity_lambda * continuity_constraint(x_aug1, x_aug2, model)
 
             state_dict['train_loss'] += loss.item() * B
             correct += torch.sum(
@@ -210,6 +213,7 @@ def train(config: AttributeHashmap) -> None:
         state_dict['train_loss'] /= total_count_loss
         state_dict['train_acc'] = correct / total_count_acc * 100
 
+        # Warmup.
         if epoch_idx >= 10:
             lr_scheduler.step()
 
@@ -244,7 +248,8 @@ def train(config: AttributeHashmap) -> None:
             best_val_acc = state_dict['val_acc']
             best_model = model.state_dict()
             model_save_path = '%s/%s-%s' % (config.checkpoint_dir,
-                                            config.dataset, 'val_acc_best.pth')
+                                            config.config_file_name,
+                                            'val_acc_best.pth')
             torch.save(best_model, model_save_path)
             log('Best model (so far) successfully saved.',
                 filepath=log_path,
@@ -272,8 +277,8 @@ def infer(config: AttributeHashmap) -> None:
     model = ResNet50(num_classes=config.num_classes).to(device)
 
     checkpoint_paths = sorted(
-        glob('%s/%s*.pth' % (config.checkpoint_dir, config.dataset)))
-    log_path = '%s/%s.log' % (config.log_dir, config.dataset)
+        glob('%s/%s*.pth' % (config.checkpoint_dir, config.config_file_name)))
+    log_path = '%s/%s.log' % (config.log_dir, config.config_file_name)
 
     for checkpoint in tqdm(checkpoint_paths):
         checkpoint_name = checkpoint.split('/')[-1].replace('.pth', '')
@@ -367,7 +372,8 @@ if __name__ == '__main__':
 
     args = AttributeHashmap(args)
     config = AttributeHashmap(yaml.safe_load(open(args.config)))
-    config.config_file_name = args.config
+    config.config_file_name = os.path.basename(args.config).replace(
+        '.yaml', '')
     config.gpu_id = args.gpu_id
     config = update_config_dirs(AttributeHashmap(config))
 

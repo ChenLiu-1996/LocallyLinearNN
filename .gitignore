@@ -14,3 +14,7 @@ data
 # Data
 **/*.npy
 **/*.npz
+
+# Slurm jobs
+**/*.out
+**/bash_*
