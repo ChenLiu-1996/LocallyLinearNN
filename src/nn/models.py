@@ -47,21 +47,8 @@ class ResNet50(torch.nn.Module):
         self.linear = torch.nn.Linear(in_features=self.linear_in_features,
                                       out_features=self.linear_out_features)
 
-        # This is the projection head g(.) for SimCLR training.
-        self.projection_head = torch.nn.Sequential(
-            torch.nn.Linear(in_features=self.linear_in_features,
-                            out_features=hidden_dim,
-                            bias=False), torch.nn.BatchNorm1d(hidden_dim),
-            torch.nn.ReLU(inplace=True),
-            torch.nn.Linear(in_features=hidden_dim,
-                            out_features=z_dim,
-                            bias=True))
-
     def encode(self, x):
         return self.encoder(x)
-
-    def project(self, x):
-        return self.projection_head(self.encoder(x))
 
     def forward(self, x):
         return self.linear(self.encoder(x))

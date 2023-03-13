@@ -14,7 +14,8 @@ import_dir = '/'.join(os.path.realpath(__file__).split('/')[:-1])
 sys.path.insert(0, import_dir + '/nn/')
 sys.path.insert(0, import_dir + '/utils/')
 from attribute_hashmap import AttributeHashmap
-from contrastive_no_aug import ContrastiveNoAugLoss
+from aug import SingleInstanceTwoView
+from continuity import continuity_constraint
 from early_stop import EarlyStopping
 from log_utils import log
 from models import ResNet50
@@ -46,6 +47,7 @@ def get_dataloaders(
     if config.dataset == 'mnist':
         config.in_channels = 1
         config.num_classes = 10
+        imsize = 32
         dataset_mean = (0.1307, )
         dataset_std = (0.3081, )
         torchvision_dataset = torchvision.datasets.MNIST
@@ -53,6 +55,7 @@ def get_dataloaders(
     elif config.dataset == 'cifar10':
         config.in_channels = 3
         config.num_classes = 10
+        imsize = 32
         dataset_mean = (0.4914, 0.4822, 0.4465)
         dataset_std = (0.2023, 0.1994, 0.2010)
         torchvision_dataset = torchvision.datasets.CIFAR10
@@ -60,6 +63,7 @@ def get_dataloaders(
     elif config.dataset == 'cifar100':
         config.in_channels = 3
         config.num_classes = 100
+        imsize = 32
         dataset_mean = (0.4914, 0.4822, 0.4465)
         dataset_std = (0.2023, 0.1994, 0.2010)
         torchvision_dataset = torchvision.datasets.CIFAR100
@@ -67,6 +71,7 @@ def get_dataloaders(
     elif config.dataset == 'stl10':
         config.in_channels = 3
         config.num_classes = 10
+        imsize = 96
         dataset_mean = (0.4467, 0.4398, 0.4066)
         dataset_std = (0.2603, 0.2566, 0.2713)
         torchvision_dataset = torchvision.datasets.STL10
@@ -76,7 +81,11 @@ def get_dataloaders(
             '`config.dataset` value not supported. Value provided: %s.' %
             config.dataset)
 
-    transform_train = transform_val = torchvision.transforms.Compose([
+    transform_train = SingleInstanceTwoView(imsize=imsize,
+                                            mean=dataset_mean,
+                                            std=dataset_std)
+
+    transform_val = torchvision.transforms.Compose([
         torchvision.transforms.ToTensor(),
         torchvision.transforms.Normalize(mean=dataset_mean, std=dataset_std)
     ])
@@ -139,19 +148,15 @@ def train(config: AttributeHashmap) -> None:
     model = ResNet50(num_classes=config.num_classes).to(device)
     model.init_params()
 
-    opt = torch.optim.AdamW(list(model.encoder.parameters()) +
-                            list(model.projection_head.parameters()),
+    opt = torch.optim.AdamW(list(model.encoder.parameters()),
                             lr=float(config.learning_rate),
                             weight_decay=float(config.weight_decay))
 
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        optimizer=opt,
-        T_0=10,
-        T_mult=1,
-        eta_min=float(config.learning_rate) * 1e-3)
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer=opt, T_max=config.train_epoch, eta_min=0)
 
     loss_fn_classification = torch.nn.CrossEntropyLoss()
-    loss_fn_contrastive = ContrastiveNoAugLoss()
+
     early_stopper = EarlyStopping(mode='max',
                                   patience=config.patience,
                                   percentage=False)
@@ -162,6 +167,7 @@ def train(config: AttributeHashmap) -> None:
     for epoch_idx in range(config.train_epoch):
         state_dict = {
             'train_loss': 0,
+            'train_acc': 0,
             'val_acc': 0,
         }
 
@@ -170,53 +176,44 @@ def train(config: AttributeHashmap) -> None:
         Training
         '''
         model.train()
-        correct, total_count_loss = 0, 0
+        correct, total_count_loss, total_count_acc = 0, 0, 0
         for batch_idx, (x, y_true) in enumerate(tqdm(train_loader)):
-            B = x.shape[0]
+            if batch_idx > 20:
+                break
+            x_aug1, x_aug2 = x
+            B = x_aug1.shape[0]
             assert config.in_channels in [1, 3]
             if config.in_channels == 1:
                 # Repeat the channel dimension: 1 channel -> 3 channels.
-                x = x.repeat(1, 3, 1, 1)
-            x, y_true = x.to(device), y_true.to(device)
+                x_aug1 = x_aug1.repeat(1, 3, 1, 1)
+                x_aug2 = x_aug2.repeat(1, 3, 1, 1)
+            x_aug1, x_aug2, y_true = x_aug1.to(device), x_aug2.to(
+                device), y_true.to(device)
 
             # Train encoder.
-            z = model.project(x)
+            y_pred1, y_pred2 = model(x_aug1), model(x_aug2)
 
-            loss = loss_fn_contrastive(z, x)
-            if loss.item() < 100:
-                # Temporary fix: occasional nan at early batches.
-                state_dict['train_loss'] += loss.item() * B
-                total_count_loss += B
+            loss = 1/2 * (loss_fn_classification(y_pred1, y_true) + \
+                          loss_fn_classification(y_pred2, y_true)) + \
+                config.continuity_weighting * continuity_constraint(x_aug1, x_aug2, model)
 
-                opt.zero_grad()
-                loss.backward()
-                opt.step()
+            state_dict['train_loss'] += loss.item() * B
+            correct += torch.sum(
+                torch.argmax(y_pred1, dim=-1) == y_true).item()
+            correct += torch.sum(
+                torch.argmax(y_pred2, dim=-1) == y_true).item()
+            total_count_loss += B
+            total_count_acc += 2 * B
 
-            lr_scheduler.step(epoch_idx + batch_idx / len(train_loader))
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+
         state_dict['train_loss'] /= total_count_loss
+        state_dict['train_acc'] = correct / total_count_acc * 100
 
-        # Iter over training set again and train linear classifier.
-        model.init_linear()
-        # Note: Need to create another optimizer because the model will keep updating
-        # even after freezing with `requires_grad = False` when `opt` has `momentum`.
-        opt_linear = torch.optim.AdamW(list(model.linear.parameters()),
-                                       lr=float(config.learning_rate_linear),
-                                       weight_decay=float(config.weight_decay))
-        for _ in range(config.linear_epoch):
-            for batch_idx, (x, y_true) in enumerate(tqdm(train_loader)):
-                B = x.shape[0]
-                assert config.in_channels in [1, 3]
-                if config.in_channels == 1:
-                    # Repeat the channel dimension: 1 channel -> 3 channels.
-                    x = x.repeat(1, 3, 1, 1)
-                x, y_true = x.to(device), y_true.to(device)
-
-                y_pred = model(x)
-                loss = loss_fn_classification(y_pred, y_true)
-
-                opt_linear.zero_grad()
-                loss.backward()
-                opt_linear.step()
+        if epoch_idx >= 10:
+            lr_scheduler.step()
 
         #
         '''

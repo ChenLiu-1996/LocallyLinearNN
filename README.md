@@ -1,27 +1,15 @@
-# Contrastive Learning without Augmentations
+# Improving Continuity of Neural Networks
 
 Chen Liu (chen.liu.cl2482@yale.edu)
 
 
 
 ## Environement Setup
-<details>
-  <summary><b>On our Yale Vision Lab server</b></summary>
-
-- There is a virtualenv ready to use, located at
-`/media/home/chliu/.virtualenv/contrastive-no-aug/`.
-
-- Alternatively, you can start from an existing environment "torch191-py38env",
-and install the following packages:
+We developed the codebase in a miniconda environment.
+Tested on Python 3.9.13 + PyTorch 1.12.1.
+How we created the conda environment:
 ```
-python3 -m pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu113
-python3 -m pip install wget gdown numpy matplotlib pyyaml click scipy yacs scikit-learn scikit-image
-python3 -m pip install cython pot
+conda create --name $OUR_CONDA_ENV pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit=11.3 numpy -c pytorch -c anaconda
+conda activate $OUR_CONDA_ENV
+conda install -c anaconda scikit-image pillow matplotlib seaborn tqdm
 ```
-
-If you see error messages such as `Failed to build CUDA kernels for bias_act.`, you can fix it with:
-```
-python3 -m pip install ninja
-```
-
-</details>
