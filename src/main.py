@@ -178,8 +178,6 @@ def train(config: AttributeHashmap) -> None:
         model.train()
         correct, total_count_loss, total_count_acc = 0, 0, 0
         for batch_idx, (x, y_true) in enumerate(tqdm(train_loader)):
-            if batch_idx > 20:
-                break
             x_aug1, x_aug2 = x
             B = x_aug1.shape[0]
             assert config.in_channels in [1, 3]
