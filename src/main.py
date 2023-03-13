@@ -19,6 +19,7 @@ from continuity import continuity_constraint
 from early_stop import EarlyStopping
 from log_utils import log
 from models import ResNet50
+from scheduler import LinearWarmupCosineAnnealingLR
 from seed import seed_everything
 
 
@@ -152,8 +153,10 @@ def train(config: AttributeHashmap) -> None:
                             lr=float(config.learning_rate),
                             weight_decay=float(config.weight_decay))
 
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer=opt, T_max=config.train_epoch, eta_min=0)
+    lr_scheduler = LinearWarmupCosineAnnealingLR(optimizer=opt,
+                                                 warmup_epochs=10,
+                                                 max_epochs=config.train_epoch,
+                                                 eta_min=0)
 
     loss_fn_classification = torch.nn.CrossEntropyLoss()
 
@@ -213,9 +216,7 @@ def train(config: AttributeHashmap) -> None:
         state_dict['train_loss'] /= total_count_loss
         state_dict['train_acc'] = correct / total_count_acc * 100
 
-        # Warmup.
-        if epoch_idx >= 10:
-            lr_scheduler.step()
+        lr_scheduler.step()
 
         #
         '''
