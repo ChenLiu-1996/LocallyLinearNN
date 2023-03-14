@@ -14,7 +14,7 @@ import_dir = '/'.join(os.path.realpath(__file__).split('/')[:-1])
 sys.path.insert(0, import_dir + '/nn/')
 sys.path.insert(0, import_dir + '/utils/')
 from attribute_hashmap import AttributeHashmap
-from aug import SingleInstanceTwoView
+from aug import PairedAugmentation
 from continuity import continuity_constraint
 from early_stop import EarlyStopping
 from log_utils import log
@@ -82,9 +82,9 @@ def get_dataloaders(
             '`config.dataset` value not supported. Value provided: %s.' %
             config.dataset)
 
-    transform_train = SingleInstanceTwoView(imsize=imsize,
-                                            mean=dataset_mean,
-                                            std=dataset_std)
+    transform_train = PairedAugmentation(imsize=imsize,
+                                         mean=dataset_mean,
+                                         std=dataset_std)
 
     transform_val = torchvision.transforms.Compose([
         torchvision.transforms.ToTensor(),
