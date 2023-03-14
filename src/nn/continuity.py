@@ -32,7 +32,7 @@ def continuity_constraint(x1: torch.Tensor, x2: torch.Tensor,
     inner_product = torch.sum(df_dx1 *
                               (x2 - x1)[..., None].repeat(1, 1, 1, 1, d),
                               dim=[1, 2, 3])
-7666ytttt
+
     # shape: [B]
     constraint = torch.norm(f(x2) - f(x1) - inner_product, p=2, dim=1)
 
