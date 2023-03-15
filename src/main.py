@@ -18,7 +18,7 @@ from aug import PairedAugmentation
 from continuity import continuity_constraint
 from early_stop import EarlyStopping
 from log_utils import log
-from models import ResNet50
+from models import ResNet18
 from scheduler import LinearWarmupCosineAnnealingLR
 from seed import seed_everything
 
@@ -146,7 +146,7 @@ def train(config: AttributeHashmap) -> None:
     config_str += '\nTraining History:'
     log(config_str, filepath=log_path, to_console=False)
 
-    model = ResNet50(num_classes=config.num_classes).to(device)
+    model = ResNet18(num_classes=config.num_classes).to(device)
     model.init_params()
 
     opt = torch.optim.AdamW(list(model.encoder.parameters()),
@@ -275,7 +275,7 @@ def infer(config: AttributeHashmap) -> None:
     dataloaders, config = get_dataloaders(config=config)
     _, val_loader = dataloaders
 
-    model = ResNet50(num_classes=config.num_classes).to(device)
+    model = ResNet18(num_classes=config.num_classes).to(device)
 
     checkpoint_paths = sorted(
         glob('%s/%s*.pth' % (config.checkpoint_dir, config.config_file_name)))

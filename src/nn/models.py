@@ -7,19 +7,17 @@ import torch
 import torchvision
 
 
-class ResNet50(torch.nn.Module):
+class ResNet18(torch.nn.Module):
 
     def __init__(self,
-                 num_classes: int = 10,
-                 hidden_dim: int = 512,
-                 z_dim: int = 128) -> None:
-        super(ResNet50, self).__init__()
+                 num_classes: int = 10) -> None:
+        super(ResNet18, self).__init__()
         self.num_classes = num_classes
 
         # Isolate the ResNet model into an encoder and a linear classifier.
 
         # Get the correct dimensions of the classifer.
-        self.encoder = torchvision.models.resnet50(
+        self.encoder = torchvision.models.resnet18(
             num_classes=self.num_classes)
         self.linear_in_features = self.encoder.fc.in_features
         self.linear_out_features = self.encoder.fc.out_features
@@ -28,7 +26,7 @@ class ResNet50(torch.nn.Module):
         # Modify the encoder.
         del self.encoder
         self.encoder = []
-        for name, module in torchvision.models.resnet50(
+        for name, module in torchvision.models.resnet18(
                 num_classes=self.num_classes).named_children():
             if name == 'conv1':
                 module = torch.nn.Conv2d(3,

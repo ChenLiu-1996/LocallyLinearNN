@@ -17,21 +17,18 @@ def continuity_constraint(x1: torch.Tensor, x2: torch.Tensor,
     assert len(f_x1_grad.shape) == 2
     _, d = f_x1_grad.shape
 
-    # shape: [B, C, H, W, d]
-    df_dx1 = torch.stack([
-        torch.autograd.grad(outputs=f_x1_grad[:, idx],
-                            inputs=x1_grad,
-                            grad_outputs=torch.ones(f_x1_grad.shape[0]).to(
-                                f_x1_grad.device),
-                            create_graph=True,
-                            retain_graph=True)[0] for idx in range(d)
-    ],
-                         dim=4)
+    inner_product = torch.zeros_like(f_x1_grad)
+    for d_idx in range(d):
+        # shape: [B, C, H, W]
+        df_dx1 = torch.autograd.grad(
+            outputs=f_x1_grad[:, d_idx],
+            inputs=x1_grad,
+            grad_outputs=torch.ones(f_x1_grad.shape[0]).to(f_x1_grad.device),
+            create_graph=True,
+            retain_graph=True)[0]
 
-    # shape: [B, d]
-    inner_product = torch.sum(df_dx1 *
-                              (x2 - x1)[..., None].repeat(1, 1, 1, 1, d),
-                              dim=[1, 2, 3])
+        # shape: [B, d]
+        inner_product[:, d_idx] = torch.sum(df_dx1 * (x2 - x1), dim=[1, 2, 3])
 
     # shape: [B]
     constraint = torch.norm(f(x2) - f(x1) - inner_product, p=2, dim=1)
