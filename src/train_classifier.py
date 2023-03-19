@@ -11,16 +11,17 @@ import yaml
 from tqdm import tqdm
 
 import_dir = '/'.join(os.path.realpath(__file__).split('/')[:-1])
-sys.path.insert(0, import_dir + '/nn/')
 sys.path.insert(0, import_dir + '/utils/')
 from attribute_hashmap import AttributeHashmap
-from aug import PairedAugmentation
-from continuity import continuity_constraint
 from early_stop import EarlyStopping
 from log_utils import log
+from seed import seed_everything
+
+sys.path.insert(0, import_dir + '/nn/')
+from aug import PairedAugmentation
+from continuity import continuity_constraint
 from models import ResNet18, SmallConvNet
 from scheduler import LinearWarmupCosineAnnealingLR
-from seed import seed_everything
 
 
 def update_config_dirs(config: AttributeHashmap) -> AttributeHashmap:

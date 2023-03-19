@@ -19,7 +19,9 @@ def continuity_constraint(x1: torch.Tensor, x2: torch.Tensor,
 
     inner_product = torch.zeros_like(f_x1_grad)
     for d_idx in range(d):
-        # shape: [B, C, H, W]
+        # shape: same as `x1`, `x2`
+        # [B, C, H, W] if `x` is an image
+        # [B, d] if `x` is a noise vector.
         df_dx1 = torch.autograd.grad(
             outputs=f_x1_grad[:, d_idx],
             inputs=x1_grad,
@@ -28,7 +30,10 @@ def continuity_constraint(x1: torch.Tensor, x2: torch.Tensor,
             retain_graph=True)[0]
 
         # shape: [B, d]
-        inner_product[:, d_idx] = torch.sum(df_dx1 * (x2 - x1), dim=[1, 2, 3])
+        if len(x1.shape) == 4:
+            inner_product[:, d_idx] = torch.sum(df_dx1 * (x2 - x1), dim=[1, 2, 3])
+        elif len(x1.shape) == 2:
+            inner_product[:, d_idx] = torch.sum(df_dx1 * (x2 - x1), dim=1)
 
     # shape: [B]
     constraint = torch.norm(f(x2).detach() - f(x1).detach() - inner_product,
