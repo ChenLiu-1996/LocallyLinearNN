@@ -4,6 +4,7 @@ from typing import Tuple
 import torchvision.transforms as transforms
 from PIL import ImageFilter
 
+
 class PairedAugmentation:
     '''
     Use the same position-changing augmentations, but different position-invariant augmentations.
@@ -19,7 +20,7 @@ class PairedAugmentation:
             transforms.RandomRotation(30),
         ])
         self.pos_invariant_aug = transforms.Compose([
-                        transforms.RandomApply([
+            transforms.RandomApply([
                 transforms.ColorJitter(
                     brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1)
             ],

@@ -1,8 +1,9 @@
 checkpoint_dir: '$ROOT_DIR/results/checkpoints/'
-log_dir: '$ROOT_DIR/results/logs/'
+log_dir: '$ROOT_DIR/logs/'
 output_save_path: '$ROOT_DIR/results/'
 dataset_dir: '$ROOT_DIR/data/mnist/'
-train_epoch: 100
+model: 'resnet18'
+wtrain_epoch: 100
 patience: 10
 batch_size: 100
 learning_rate: 1e-3

@@ -18,7 +18,7 @@ from aug import PairedAugmentation
 from continuity import continuity_constraint
 from early_stop import EarlyStopping
 from log_utils import log
-from models import ResNet18
+from models import ResNet18, SmallConvNet
 from scheduler import LinearWarmupCosineAnnealingLR
 from seed import seed_everything
 
@@ -48,7 +48,8 @@ def get_dataloaders(
     if config.dataset == 'mnist':
         config.in_channels = 1
         config.num_classes = 10
-        imsize = 32
+        imsize = 28
+        config.image_shape = (3, 28, 28)
         dataset_mean = (0.1307, )
         dataset_std = (0.3081, )
         torchvision_dataset = torchvision.datasets.MNIST
@@ -57,6 +58,7 @@ def get_dataloaders(
         config.in_channels = 3
         config.num_classes = 10
         imsize = 32
+        config.image_shape = (3, 32, 32)
         dataset_mean = (0.4914, 0.4822, 0.4465)
         dataset_std = (0.2023, 0.1994, 0.2010)
         torchvision_dataset = torchvision.datasets.CIFAR10
@@ -65,6 +67,7 @@ def get_dataloaders(
         config.in_channels = 3
         config.num_classes = 100
         imsize = 32
+        config.image_shape = (3, 32, 32)
         dataset_mean = (0.4914, 0.4822, 0.4465)
         dataset_std = (0.2023, 0.1994, 0.2010)
         torchvision_dataset = torchvision.datasets.CIFAR100
@@ -73,6 +76,7 @@ def get_dataloaders(
         config.in_channels = 3
         config.num_classes = 10
         imsize = 96
+        config.image_shape = (3, 96, 96)
         dataset_mean = (0.4467, 0.4398, 0.4066)
         dataset_std = (0.2603, 0.2566, 0.2713)
         torchvision_dataset = torchvision.datasets.STL10
@@ -146,7 +150,11 @@ def train(config: AttributeHashmap) -> None:
     config_str += '\nTraining History:'
     log(config_str, filepath=log_path, to_console=False)
 
-    model = ResNet18(num_classes=config.num_classes).to(device)
+    if config.model == 'SmallConvNet':
+        model = SmallConvNet(num_classes=config.num_classes,
+                             image_shape=config.image_shape).to(device)
+    elif config.model == 'resnet18':
+        model = ResNet18(num_classes=config.num_classes).to(device)
     model.init_params()
 
     opt = torch.optim.AdamW(list(model.encoder.parameters()),
@@ -275,7 +283,11 @@ def infer(config: AttributeHashmap) -> None:
     dataloaders, config = get_dataloaders(config=config)
     _, val_loader = dataloaders
 
-    model = ResNet18(num_classes=config.num_classes).to(device)
+    if config.model == 'SmallConvNet':
+        model = SmallConvNet(num_classes=config.num_classes,
+                             image_shape=config.image_shape).to(device)
+    elif config.model == 'resnet18':
+        model = ResNet18(num_classes=config.num_classes).to(device)
 
     checkpoint_paths = sorted(
         glob('%s/%s*.pth' % (config.checkpoint_dir, config.config_file_name)))
@@ -364,7 +376,7 @@ if __name__ == '__main__':
     parser.add_argument('--config',
                         help='Path to config yaml file.',
                         required=True)
-    parser.add_argument('--mode', help='Train or infer?', required=True)
+    parser.add_argument('--mode', help='Train or infer?', default='train')
     parser.add_argument('--gpu-id',
                         help='Available GPU index.',
                         type=int,
