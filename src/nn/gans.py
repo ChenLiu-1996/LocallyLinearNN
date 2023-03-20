@@ -193,7 +193,6 @@ class Discriminator(torch.nn.Module):
                 x = torch.nn.functional.relu(x)
             else:
                 x = self.convs[i](x)
-                x = torch.sigmoid(x)
         return x
 
 
@@ -239,15 +238,15 @@ class GAN(torch.nn.Module):
         return self.generator(z)
 
     def forward_D(self, x: torch.Tensor) -> torch.Tensor:
-        return self.discriminator(x)
+        return torch.sigmoid(self.discriminator(x))
 
     def optimize_G(self):
-        z = torch.randn((self.B, self.z_dim)).to(self.device)
+        z = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
         x_fake = self.forward_G(z)
         y_pred_fake = self.forward_D(x_fake).view(-1)
         loss_G = self.loss_fn(y_pred_fake, self.ones)
         if self.linearity_lambda > 0:
-            z_prime = torch.randn((self.B, self.z_dim)).to(self.device)
+            z_prime = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
             loss_G = loss_G + self.linearity_lambda * linearity_constraint(
                 z, z_prime, self.generator)
 
@@ -268,6 +267,14 @@ class GAN(torch.nn.Module):
         self.opt_D.zero_grad()
         loss_D.backward()
         self.opt_D.step()
+
+    def train(self):
+        self.generator.train()
+        self.discriminator.train()
+
+    def eval(self):
+        self.generator.eval()
+        self.discriminator.eval()
 
 
 class WGAN(torch.nn.Module):
@@ -316,12 +323,12 @@ class WGAN(torch.nn.Module):
         return self.discriminator(x)
 
     def optimize_G(self):
-        z = torch.randn((self.B, self.z_dim)).to(self.device)
+        z = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
         x_fake = self.forward_G(z)
         y_pred_fake = self.forward_D(x_fake).view(-1)
         loss_G = -torch.mean(y_pred_fake)
         if self.linearity_lambda > 0:
-            z_prime = torch.randn((self.B, self.z_dim)).to(self.device)
+            z_prime = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
             loss_G = loss_G + self.linearity_lambda * linearity_constraint(
                 z, z_prime, self.generator)
 
@@ -333,7 +340,7 @@ class WGAN(torch.nn.Module):
         for _ in range(self.D_iters_per_G_iter):
             x_real = x_real.to(self.device)
             with torch.no_grad():
-                z = torch.randn((self.B, self.z_dim)).to(self.device)
+                z = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
                 x_fake = self.forward_G(z)
             y_pred_real = self.forward_D(x_real).view(-1)
             y_pred_fake = self.forward_D(x_fake).view(-1)
@@ -344,6 +351,14 @@ class WGAN(torch.nn.Module):
             torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(),
                                            max_norm=self.grad_norm)
             self.opt_D.step()
+
+    def train(self):
+        self.generator.train()
+        self.discriminator.train()
+
+    def eval(self):
+        self.generator.eval()
+        self.discriminator.eval()
 
 
 class WGANGP(torch.nn.Module):
@@ -392,12 +407,12 @@ class WGANGP(torch.nn.Module):
         return self.discriminator(x)
 
     def optimize_G(self):
-        z = torch.randn((self.B, self.z_dim)).to(self.device)
+        z = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
         x_fake = self.forward_G(z)
         y_pred_fake = self.forward_D(x_fake).view(-1)
         loss_G = -torch.mean(y_pred_fake)
         if self.linearity_lambda > 0:
-            z_prime = torch.randn((self.B, self.z_dim)).to(self.device)
+            z_prime = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
             loss_G = loss_G + self.linearity_lambda * linearity_constraint(
                 z, z_prime, self.generator)
 
@@ -409,7 +424,7 @@ class WGANGP(torch.nn.Module):
         for _ in range(self.D_iters_per_G_iter):
             x_real = x_real.to(self.device)
             with torch.no_grad():
-                z = torch.randn((self.B, self.z_dim)).to(self.device)
+                z = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
                 x_fake = self.forward_G(z)
             y_pred_real = self.forward_D(x_real).view(-1)
             y_pred_fake = self.forward_D(x_fake).view(-1)
@@ -421,3 +436,11 @@ class WGANGP(torch.nn.Module):
             self.opt_D.zero_grad()
             loss_D.backward()
             self.opt_D.step()
+
+    def train(self):
+        self.generator.train()
+        self.discriminator.train()
+
+    def eval(self):
+        self.generator.eval()
+        self.discriminator.eval()

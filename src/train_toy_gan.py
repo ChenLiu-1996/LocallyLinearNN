@@ -102,17 +102,20 @@ def train(args):
         model = GAN(learning_rate=args.learning_rate,
                     device=device,
                     batch_size=args.batch_size,
-                    linearity_lambda=args.linearity_lambda)
+                    linearity_lambda=args.linearity_lambda,
+                    linearity_include_D=args.linearity_include_D)
     elif args.gan_name == 'WGAN':
         model = WGAN(learning_rate=args.learning_rate,
                      device=device,
                      batch_size=args.batch_size,
-                     linearity_lambda=args.linearity_lambda)
+                     linearity_lambda=args.linearity_lambda,
+                    linearity_include_D=args.linearity_include_D)
     elif args.gan_name == 'WGANGP':
         model = WGANGP(learning_rate=args.learning_rate,
                        device=device,
                        batch_size=args.batch_size,
-                       linearity_lambda=args.linearity_lambda)
+                       linearity_lambda=args.linearity_lambda,
+                    linearity_include_D=args.linearity_include_D)
     else:
         raise ValueError('`args.gan_name` not supported: %s.' % args.gan_name)
 
@@ -147,6 +150,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset_name', type=str, default='8gaussians')
     parser.add_argument('--gan_name', type=str, default='GAN')
     parser.add_argument('--linearity_lambda', type=float, default=0)
+    parser.add_argument('--linearity_include_D', action='store_true')
     parser.add_argument('--gpu_id', type=int, default=0)
     parser.add_argument('--learning_rate', type=float, default=1e-4)
     parser.add_argument('--iters', type=int, default=100000)
@@ -159,6 +163,6 @@ if __name__ == '__main__':
     seed_everything(args.random_seed)
 
     os.makedirs('../results/figures/', exist_ok=True)
-    args.fig_save_path = '../results/figures/toy-%s-%s-lambda=%s.png' % (
-        args.dataset_name, args.gan_name, 'NA' if args.linearity_lambda == 0 else args.linearity_lambda)
+    args.fig_save_path = '../results/figures/toy-%s-%s-lambda=%s%s.png' % (
+        args.dataset_name, args.gan_name, 'NA' if args.linearity_lambda == 0 else args.linearity_lambda, '-LLGandD' if args.linearity_include_D is True else '')
     train(args)

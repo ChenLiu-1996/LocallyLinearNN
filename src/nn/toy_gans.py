@@ -10,6 +10,7 @@ class GAN(torch.nn.Module):
                  device: torch.device = torch.device('cpu'),
                  batch_size: int = 4,
                  linearity_lambda: float = 0,
+                 linearity_include_D: bool = False,
                  z_dim: int = 2,
                  output_dim: int = 2,
                  hidden_dim: int = 512):
@@ -17,6 +18,7 @@ class GAN(torch.nn.Module):
 
         self.device = device
         self.linearity_lambda = linearity_lambda
+        self.linearity_include_D = linearity_include_D
         self.B = batch_size
         self.z_dim = z_dim
 
@@ -39,7 +41,6 @@ class GAN(torch.nn.Module):
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, 1),
             torch.nn.Flatten(),
-            torch.nn.Sigmoid(),
         )
 
         self.generator.to(device)
@@ -57,7 +58,7 @@ class GAN(torch.nn.Module):
         return self.generator(z)
 
     def forward_D(self, x: torch.Tensor) -> torch.Tensor:
-        return self.discriminator(x)
+        return torch.sigmoid(self.discriminator(x))
 
     def optimize_G(self):
         z = torch.randn((self.B, self.z_dim)).to(self.device)
@@ -82,6 +83,12 @@ class GAN(torch.nn.Module):
         y_pred_fake = self.forward_D(x_fake).view(-1)
         loss_D = self.loss_fn(y_pred_real, self.ones) + self.loss_fn(
             y_pred_fake, self.zeros)
+        if self.linearity_include_D:
+            assert self.linearity_lambda > 0
+            x_real_prime = torch.from_numpy(real_dist_gen.__next__()).to(
+                self.device)
+            loss_D = loss_D + self.linearity_lambda * linearity_constraint(
+                x_real, x_real_prime, self.discriminator)
 
         self.opt_D.zero_grad()
         loss_D.backward()
@@ -95,6 +102,7 @@ class WGAN(torch.nn.Module):
                  device: torch.device = torch.device('cpu'),
                  batch_size: int = 4,
                  linearity_lambda: float = 0,
+                 linearity_include_D: bool = False,
                  D_iters_per_G_iter: int = 5,
                  grad_norm: float = 1.0,
                  z_dim: int = 2,
@@ -104,6 +112,7 @@ class WGAN(torch.nn.Module):
 
         self.device = device
         self.linearity_lambda = linearity_lambda
+        self.linearity_include_D = linearity_include_D
         self.B = batch_size
         self.D_iters_per_G_iter = D_iters_per_G_iter
         self.grad_norm = grad_norm
@@ -128,7 +137,6 @@ class WGAN(torch.nn.Module):
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, 1),
             torch.nn.Flatten(),
-            torch.nn.Sigmoid(),
         )
 
         self.generator.to(device)
@@ -168,6 +176,12 @@ class WGAN(torch.nn.Module):
             y_pred_real = self.forward_D(x_real).view(-1)
             y_pred_fake = self.forward_D(x_fake).view(-1)
             loss_D = torch.mean(y_pred_fake) - torch.mean(y_pred_real)
+            if self.linearity_include_D:
+                assert self.linearity_lambda > 0
+                x_real_prime = torch.from_numpy(real_dist_gen.__next__()).to(
+                    self.device)
+                loss_D = loss_D + self.linearity_lambda * linearity_constraint(
+                    x_real, x_real_prime, self.discriminator)
 
             self.opt_D.zero_grad()
             loss_D.backward()
@@ -183,6 +197,7 @@ class WGANGP(torch.nn.Module):
                  device: torch.device = torch.device('cpu'),
                  batch_size: int = 4,
                  linearity_lambda: float = 0,
+                 linearity_include_D: bool = False,
                  D_iters_per_G_iter: int = 5,
                  gp_lambda: float = 10,
                  z_dim: int = 2,
@@ -192,6 +207,7 @@ class WGANGP(torch.nn.Module):
 
         self.device = device
         self.linearity_lambda = linearity_lambda
+        self.linearity_include_D = linearity_include_D
         self.B = batch_size
         self.z_dim = z_dim
         self.gp_lambda = gp_lambda
@@ -216,7 +232,6 @@ class WGANGP(torch.nn.Module):
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, 1),
             torch.nn.Flatten(),
-            torch.nn.Sigmoid(),
         )
 
         self.generator.to(device)
@@ -259,6 +274,12 @@ class WGANGP(torch.nn.Module):
                                   self.discriminator)
             loss_D = torch.mean(y_pred_fake) - torch.mean(
                 y_pred_real) + self.gp_lambda * gp
+            if self.linearity_include_D:
+                assert self.linearity_lambda > 0
+                x_real_prime = torch.from_numpy(real_dist_gen.__next__()).to(
+                    self.device)
+                loss_D = loss_D + self.linearity_lambda * linearity_constraint(
+                    x_real, x_real_prime, self.discriminator)
 
             self.opt_D.zero_grad()
             loss_D.backward()

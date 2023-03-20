@@ -4,6 +4,7 @@ import sys
 from typing import List, Tuple, Union
 
 import numpy as np
+import yaml
 import torch
 import torchvision
 from gan_evaluator import GAN_Evaluator
@@ -141,23 +142,35 @@ def train(config):
         model = GAN(learning_rate=config.learning_rate,
                     device=device,
                     batch_size=config.batch_size,
+                    img_size=config.image_shape[1:],
+                    z_dim=config.z_dim,
+                    num_channel=config.image_size[0],
                     linearity_lambda=config.linearity_lambda)
     elif config.gan_name == 'WGAN':
         model = WGAN(learning_rate=config.learning_rate,
                      device=device,
                      batch_size=config.batch_size,
+                    img_size=config.image_shape[1:],
+                    z_dim=config.z_dim,
+                    num_channel=config.image_size[0],
                      linearity_lambda=config.linearity_lambda)
     elif config.gan_name == 'WGANGP':
         model = WGANGP(learning_rate=config.learning_rate,
                        device=device,
                        batch_size=config.batch_size,
+                    img_size=config.image_shape[1:],
+                    z_dim=config.z_dim,
+                    num_channel=config.image_size[0],
                        linearity_lambda=config.linearity_lambda)
     else:
         raise ValueError('`config.gan_name` not supported: %s.' %
                          args.gan_name)
 
     # Create folders.
+    os.makedirs(config.checkpoint_dir, exist_ok=True)
     os.makedirs(config.plot_folder, exist_ok=True)
+    os.makedirs(config.log_dir, exist_ok=True)
+    log_path = '%s/%s.log' % (config.log_dir, config.config_file_name)
 
     # Log the config.
     config_str = 'Config: \n'
@@ -179,9 +192,8 @@ def train(config):
 
     epoch_list, IS_list, FID_list = [], [], []
     for epoch_idx in range(config.max_epochs):
-        num_visited = 0
-        y_pred_real_sum, y_pred_fake_sum, loss_D_sum, loss_G_sum = 0, 0, 0, 0
 
+        model.train()
         for batch_idx, (x_real, _) in enumerate(tqdm(train_loader)):
             shall_plot = batch_idx % config.plot_interval == config.plot_interval - 1 or batch_idx == len(
                 train_loader) - 1
@@ -200,7 +212,12 @@ def train(config):
             # These are the values evaluated with the data available so far.
             # `IS_std` is only meaningful if `EVALUATOR.IS_splits` > 1.
             if shall_plot:
-                IS_mean, IS_std, FID = evaluator.fill_fake_img_batch(
+                z = torch.randn((B, model.z_dim)).to(device)
+                with torch.no_grad():
+                    model.eval()
+                    x_fake = model.forward_G(z)
+                    model.train()
+                IS_mean, _, FID = evaluator.fill_fake_img_batch(
                     fake_batch=x_fake)
                 epoch_list.append(epoch_idx + batch_idx / len(train_loader))
                 IS_list.append(IS_mean)
@@ -209,26 +226,95 @@ def train(config):
                 evaluator.fill_fake_img_batch(fake_batch=x_fake,
                                               return_results=False)
 
+            # Plot intermediate results.
+            if shall_plot:
+                num_samples = 5
+                rng = torch.Generator(device=device)
+                rng.manual_seed(config.random_seed)
+                H, W = config.image_shape[1:]
+                fig = plt.figure(figsize=(15, 6))
+                for i in range(num_samples):
+                    real_image = next(iter(train_loader))[0][0, ...][None, ...]
+                    real_image = real_image.type(torch.FloatTensor).to(device)
+                    with torch.no_grad():
+                        model.eval()
+                        y_pred_real = model.forward_D(real_image).view(-1)
+                        model.train()
+                    real_image = np.moveaxis(real_image.cpu().detach().numpy(),
+                                             1, -1).reshape(H, W, 3)
+                    real_image = normalize(real_image, dynamic_range=[0, 1])
+                    ax = fig.add_subplot(2, num_samples, i + 1)
+                    ax.imshow(real_image)
+                    ax.set_axis_off()
+                    ax.set_title('D(x): %.3f' % y_pred_real)
+                    fix_z = torch.randn((1, model.z_dim, 1, 1),
+                                        device=device,
+                                        generator=rng)
+                    with torch.no_grad():
+                        model.eval()
+                        generated_image = model.forward_G(fix_z)
+                        y_pred_fake = model.forward_D(
+                            generated_image.to(device)).view(-1)
+                        model.train()
+                    generated_image = normalize(generated_image,
+                                                dynamic_range=[0, 1])
+                    ax = fig.add_subplot(2, num_samples, num_samples + i + 1)
+                    ax.imshow(
+                        np.moveaxis(generated_image.cpu().detach().numpy(), 1,
+                                    -1).reshape(H, W, 3))
+                    ax.set_title('D(G(z)): %.3f' % y_pred_fake)
+                    ax.set_axis_off()
+
+                plt.tight_layout()
+                plt.savefig('%s/epoch_%s_batch_%s_generated' %
+                            (config.plot_folder, str(epoch_idx).zfill(4),
+                             str(batch_idx).zfill(4)))
+                plt.close(fig=fig)
+
+                log('Train [E %s/%s, B %s/%s] IS: %.3f, FID: %.3f'
+                    % (epoch_idx + 1, config.max_epochs, batch_idx + 1,
+                       len(train_loader), IS_mean, FID),
+                    filepath=config.log_dir,
+                    to_console=False)
+
+        # Update the IS and FID curves every epoch.
+        fig = plt.figure(figsize=(10, 4))
+        ax = fig.add_subplot(1, 2, 1)
+        ax.scatter(epoch_list, IS_list, color='firebrick')
+        ax.plot(epoch_list, IS_list, color='firebrick')
+        ax.set_ylabel('Inception Score (IS)')
+        ax.set_xlabel('Epoch')
+        ax.spines[['right', 'top']].set_visible(False)
+        ax = fig.add_subplot(1, 2, 2)
+        ax.scatter(epoch_list, FID_list, color='firebrick')
+        ax.plot(epoch_list, FID_list, color='firebrick')
+        ax.set_ylabel('Frechet Inception Distance (FID)')
+        ax.set_xlabel('Epoch')
+        ax.spines[['right', 'top']].set_visible(False)
+        plt.tight_layout()
+        plt.savefig('%s/IS_FID_curve' % config.plot_folder)
+        plt.close(fig=fig)
+
+        # Need to clear up the fake images every epoch.
+        evaluator.clear_fake_imgs()
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--batch_size', type=int, default=256)
-    parser.add_argument('--dataset_name', type=str, default='8gaussians')
-    parser.add_argument('--gan_name', type=str, default='GAN')
-    parser.add_argument('--linearity_lambda', type=float, default=0)
-    parser.add_argument('--gpu_id', type=int, default=0)
-    parser.add_argument('--learning_rate', type=float, default=1e-4)
-    parser.add_argument('--iters', type=int, default=100000)
-    parser.add_argument('--num_figs', type=int, default=10)
-    parser.add_argument('--random_seed', type=int, default=1)
+    parser = argparse.ArgumentParser(
+        description='Entry point to train student network.')
+    parser.add_argument('--config',
+                        help='Path to config yaml file.',
+                        required=True)
+    parser.add_argument('--gpu-id',
+                        help='Available GPU index.',
+                        type=int,
+                        default=0)
     args = vars(parser.parse_args())
 
     args = AttributeHashmap(args)
+    config = AttributeHashmap(yaml.safe_load(open(args.config)))
+    config.config_file_name = args.config
+    config.gpu_id = args.gpu_id
+    config = parse_setting(AttributeHashmap(config))
 
-    seed_everything(args.random_seed)
-
-    os.makedirs('../results/figures/', exist_ok=True)
-    args.fig_save_path = '../results/figures/toy-%s-%s-lambda=%s.png' % (
-        args.dataset_name, args.gan_name,
-        'NA' if args.linearity_lambda == 0 else args.linearity_lambda)
-    train(args)
+    seed_everything(config.random_seed)
+    train(config=config)
