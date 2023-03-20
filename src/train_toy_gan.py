@@ -150,7 +150,7 @@ if __name__ == '__main__':
     parser.add_argument('--linearity_include_D', action='store_true')
     parser.add_argument('--gpu_id', type=int, default=0)
     parser.add_argument('--learning_rate', type=float, default=1e-4)
-    parser.add_argument('--iters', type=int, default=3000)
+    parser.add_argument('--iters', type=int, default=100000)
     parser.add_argument('--num_figs', type=int, default=10)
     parser.add_argument('--random_seed', type=int, default=0)
     args = vars(parser.parse_args())
