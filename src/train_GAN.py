@@ -40,7 +40,7 @@ def real_dist_generator(dataset_name: str, batch_size: int):
 
         while True:
             dataset = sklearn.datasets.make_swiss_roll(n_samples=batch_size,
-                                                    noise=0.25)[0]
+                                                       noise=0.25)[0]
             dataset = dataset.astype('float32')[:, [0, 2]]
             dataset /= 7.5  # stdev plus a little
             yield dataset
@@ -100,19 +100,21 @@ def train(args):
 
     if args.gan_name == 'GAN':
         model = GAN(learning_rate=args.learning_rate,
-                          device=device,
-                          batch_size=args.batch_size,
-                          linearity_lambda=args.linearity_lambda)
+                    device=device,
+                    batch_size=args.batch_size,
+                    linearity_lambda=args.linearity_lambda)
     elif args.gan_name == 'WGAN':
         model = WGAN(learning_rate=args.learning_rate,
-                          device=device,
-                          batch_size=args.batch_size,
-                          linearity_lambda=args.linearity_lambda)
+                     device=device,
+                     batch_size=args.batch_size,
+                     linearity_lambda=args.linearity_lambda)
     elif args.gan_name == 'WGANGP':
         model = WGANGP(learning_rate=args.learning_rate,
-                          device=device,
-                          batch_size=args.batch_size,
-                          linearity_lambda=args.linearity_lambda)
+                       device=device,
+                       batch_size=args.batch_size,
+                       linearity_lambda=args.linearity_lambda)
+    else:
+        raise ValueError('`args.gan_name` not supported: %s.' % args.gan_name)
 
     real_dist_gen = real_dist_generator(dataset_name=args.dataset_name,
                                         batch_size=args.batch_size)
@@ -158,5 +160,5 @@ if __name__ == '__main__':
 
     os.makedirs('../results/figures/', exist_ok=True)
     args.fig_save_path = '../results/figures/toy-%s-%s-lambda=%s.png' % (
-        args.dataset_name, args.gan_name, args.linearity_lambda)
+        args.dataset_name, args.gan_name, 'NA' if args.linearity_lambda == 0 else args.linearity_lambda)
     train(args)

@@ -159,6 +159,7 @@ class WGAN(torch.nn.Module):
 
         self.opt_G.zero_grad()
         loss_G.backward()
+        torch.nn.utils.clip_grad_norm_(self.generator.parameters(), max_norm=0.01)
         self.opt_G.step()
 
     def optimize_D(self, real_dist_gen):
@@ -173,6 +174,7 @@ class WGAN(torch.nn.Module):
 
             self.opt_D.zero_grad()
             loss_D.backward()
+            torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), max_norm=0.01)
             self.opt_D.step()
 
 
