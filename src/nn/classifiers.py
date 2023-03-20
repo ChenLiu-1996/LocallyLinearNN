@@ -80,10 +80,10 @@ class SmallConvNet(torch.nn.Module):
 
         # Get the correct dimensions of the classifer.
         self.encoder = torch.nn.Sequential(
-            torch.nn.Conv2d(3, 64, kernel_size=5),
+            torch.nn.Conv2d(3, 256, kernel_size=5),
             torch.nn.ReLU(inplace=True),
             torch.nn.MaxPool2d(kernel_size=2),
-            torch.nn.Conv2d(64, 64, kernel_size=5),
+            torch.nn.Conv2d(256, 256, kernel_size=5),
             torch.nn.ReLU(inplace=True),
             torch.nn.MaxPool2d(kernel_size=2),
             torch.nn.Flatten()

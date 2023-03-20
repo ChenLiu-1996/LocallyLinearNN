@@ -127,7 +127,7 @@ def train(args):
         model.optimize_D(real_dist_gen=real_dist_gen)
 
         # Train generator
-        model.optimize_G(real_dist_gen=real_dist_gen)
+        model.optimize_G()
 
         if iter_idx % int(args.iters / args.num_figs) == 0:
             ax = fig.add_subplot(args.num_figs, 1, fig_idx)

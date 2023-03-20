@@ -20,7 +20,7 @@ from seed import seed_everything
 sys.path.insert(0, import_dir + '/nn/')
 from aug import PairedAugmentation
 from linearity import linearity_constraint
-from models import ResNet18, SmallConvNet
+from classifiers import ResNet18, SmallConvNet
 from scheduler import LinearWarmupCosineAnnealingLR
 
 
