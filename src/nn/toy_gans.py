@@ -1,6 +1,6 @@
 import torch
 from gradient_penalty import gradient_penalty
-from linearity import linearity_constraint
+from linearity import linearity_constraint, sort_minimize_dist
 
 
 class GAN(torch.nn.Module):
@@ -33,7 +33,7 @@ class GAN(torch.nn.Module):
         )
 
         self.discriminator = torch.nn.Sequential(
-            torch.nn.Linear(z_dim, hidden_dim),
+            torch.nn.Linear(output_dim, hidden_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, hidden_dim),
             torch.nn.ReLU(),
@@ -67,6 +67,7 @@ class GAN(torch.nn.Module):
         loss_G = self.loss_fn(y_pred_fake, self.ones)
         if self.linearity_lambda > 0:
             z_prime = torch.randn((self.B, self.z_dim)).to(self.device)
+            z_prime = sort_minimize_dist(tensor_moving=z_prime, tensor_fixed=z)
             loss_G = loss_G + self.linearity_lambda * linearity_constraint(
                 z, z_prime, self.generator)
 
@@ -87,6 +88,8 @@ class GAN(torch.nn.Module):
             assert self.linearity_lambda > 0
             x_real_prime = torch.from_numpy(real_dist_gen.__next__()).to(
                 self.device)
+            x_real_prime = sort_minimize_dist(tensor_moving=x_real_prime,
+                                              tensor_fixed=x_real)
             loss_D = loss_D + self.linearity_lambda * linearity_constraint(
                 x_real, x_real_prime, self.discriminator)
 
@@ -97,17 +100,18 @@ class GAN(torch.nn.Module):
 
 class WGAN(torch.nn.Module):
 
-    def __init__(self,
-                 learning_rate: float = 1e-4,
-                 device: torch.device = torch.device('cpu'),
-                 batch_size: int = 4,
-                 linearity_lambda: float = 0,
-                 linearity_include_D: bool = False,
-                 D_iters_per_G_iter: int = 5,
-                 grad_norm: float = 1.0,
-                 z_dim: int = 2,
-                 output_dim: int = 2,
-                 hidden_dim: int = 512):
+    def __init__(
+            self,
+            learning_rate: float = 1e-4,
+            device: torch.device = torch.device('cpu'),
+            batch_size: int = 4,
+            linearity_lambda: float = 0,
+            linearity_include_D: bool = False,
+            D_iters_per_G_iter: int = 5,
+            grad_norm: float = 0.01,  # for toy dataset (official guide)
+            z_dim: int = 2,
+            output_dim: int = 2,
+            hidden_dim: int = 512):
         super(WGAN, self).__init__()
 
         self.device = device
@@ -129,7 +133,7 @@ class WGAN(torch.nn.Module):
         )
 
         self.discriminator = torch.nn.Sequential(
-            torch.nn.Linear(z_dim, hidden_dim),
+            torch.nn.Linear(output_dim, hidden_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, hidden_dim),
             torch.nn.ReLU(),
@@ -160,6 +164,7 @@ class WGAN(torch.nn.Module):
         loss_G = -torch.mean(y_pred_fake)
         if self.linearity_lambda > 0:
             z_prime = torch.randn((self.B, self.z_dim)).to(self.device)
+            z_prime = sort_minimize_dist(tensor_moving=z_prime, tensor_fixed=z)
             loss_G = loss_G + self.linearity_lambda * linearity_constraint(
                 z, z_prime, self.generator)
 
@@ -180,6 +185,8 @@ class WGAN(torch.nn.Module):
                 assert self.linearity_lambda > 0
                 x_real_prime = torch.from_numpy(real_dist_gen.__next__()).to(
                     self.device)
+                x_real_prime = sort_minimize_dist(tensor_moving=x_real_prime,
+                                                  tensor_fixed=x_real)
                 loss_D = loss_D + self.linearity_lambda * linearity_constraint(
                     x_real, x_real_prime, self.discriminator)
 
@@ -192,17 +199,18 @@ class WGAN(torch.nn.Module):
 
 class WGANGP(torch.nn.Module):
 
-    def __init__(self,
-                 learning_rate: float = 1e-4,
-                 device: torch.device = torch.device('cpu'),
-                 batch_size: int = 4,
-                 linearity_lambda: float = 0,
-                 linearity_include_D: bool = False,
-                 D_iters_per_G_iter: int = 5,
-                 gp_lambda: float = 10,
-                 z_dim: int = 2,
-                 output_dim: int = 2,
-                 hidden_dim: int = 512):
+    def __init__(
+            self,
+            learning_rate: float = 1e-4,
+            device: torch.device = torch.device('cpu'),
+            batch_size: int = 4,
+            linearity_lambda: float = 0,
+            linearity_include_D: bool = False,
+            D_iters_per_G_iter: int = 5,
+            gp_lambda: float = 0.1,  # for toy dataset (official guide)
+            z_dim: int = 2,
+            output_dim: int = 2,
+            hidden_dim: int = 512):
         super(WGANGP, self).__init__()
 
         self.device = device
@@ -224,7 +232,7 @@ class WGANGP(torch.nn.Module):
         )
 
         self.discriminator = torch.nn.Sequential(
-            torch.nn.Linear(z_dim, hidden_dim),
+            torch.nn.Linear(output_dim, hidden_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, hidden_dim),
             torch.nn.ReLU(),
@@ -255,6 +263,7 @@ class WGANGP(torch.nn.Module):
         loss_G = -torch.mean(y_pred_fake)
         if self.linearity_lambda > 0:
             z_prime = torch.randn((self.B, self.z_dim)).to(self.device)
+            z_prime = sort_minimize_dist(tensor_moving=z_prime, tensor_fixed=z)
             loss_G = loss_G + self.linearity_lambda * linearity_constraint(
                 z, z_prime, self.generator)
 
@@ -278,6 +287,8 @@ class WGANGP(torch.nn.Module):
                 assert self.linearity_lambda > 0
                 x_real_prime = torch.from_numpy(real_dist_gen.__next__()).to(
                     self.device)
+                x_real_prime = sort_minimize_dist(tensor_moving=x_real_prime,
+                                                  tensor_fixed=x_real)
                 loss_D = loss_D + self.linearity_lambda * linearity_constraint(
                     x_real, x_real_prime, self.discriminator)
 

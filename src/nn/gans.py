@@ -3,7 +3,7 @@ from typing import Tuple
 import numpy as np
 import torch
 from gradient_penalty import gradient_penalty
-from linearity import linearity_constraint
+from linearity import linearity_constraint, sort_minimize_dist
 
 
 def normal_init(m, mean, std):
@@ -18,9 +18,11 @@ class Generator(torch.nn.Module):
                  latent_dim: int = 128,
                  num_channel: int = 3,
                  resize_conv: bool = True,
-                 img_size: int = 64):
+                 img_size: Tuple[int] = (64, 64)):
         super(Generator, self).__init__()
         self.latent_dim = latent_dim
+        assert img_size[0] == img_size[1]
+        img_size = img_size[0]
         assert 2**(int(np.log2(img_size))
                    ) == img_size, '`img_size` not an integer power of 2.'
         self.img_size = img_size
@@ -112,6 +114,8 @@ class Generator(torch.nn.Module):
             normal_init(self._modules[m], mean, std)
 
     def forward(self, x):
+        assert len(x.shape) == 2
+        x = x.view(*x.shape, 1, 1)
         for i in range(self.num_layers):
             if i < self.num_layers - 1:
                 x = self.deconvs[i](x)
@@ -128,9 +132,11 @@ class Discriminator(torch.nn.Module):
     def __init__(self,
                  latent_dim: int = 128,
                  num_channel: int = 3,
-                 img_size: int = 64):
+                 img_size: Tuple[int] = (64, 64)):
         super(Discriminator, self).__init__()
         self.latent_dim = latent_dim
+        assert img_size[0] == img_size[1]
+        img_size = img_size[0]
         assert 2**(int(np.log2(img_size))
                    ) == img_size, '`img_size` not an integer power of 2.'
         self.img_size = img_size
@@ -141,9 +147,9 @@ class Discriminator(torch.nn.Module):
 
         in_dim = latent_dim
         if self.num_layers % 2 == 0:
-            out_dim = in_dim
-        else:
             out_dim = in_dim * 2
+        else:
+            out_dim = in_dim
 
         for i in range(self.num_layers):
             if i == 0:
@@ -241,12 +247,13 @@ class GAN(torch.nn.Module):
         return torch.sigmoid(self.discriminator(x))
 
     def optimize_G(self):
-        z = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
+        z = torch.randn((self.B, self.z_dim)).to(self.device)
         x_fake = self.forward_G(z)
         y_pred_fake = self.forward_D(x_fake).view(-1)
         loss_G = self.loss_fn(y_pred_fake, self.ones)
         if self.linearity_lambda > 0:
-            z_prime = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
+            z_prime = torch.randn((self.B, self.z_dim)).to(self.device)
+            z_prime = sort_minimize_dist(tensor_moving=z_prime, tensor_fixed=z)
             loss_G = loss_G + self.linearity_lambda * linearity_constraint(
                 z, z_prime, self.generator)
 
@@ -323,12 +330,13 @@ class WGAN(torch.nn.Module):
         return self.discriminator(x)
 
     def optimize_G(self):
-        z = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
+        z = torch.randn((self.B, self.z_dim)).to(self.device)
         x_fake = self.forward_G(z)
         y_pred_fake = self.forward_D(x_fake).view(-1)
         loss_G = -torch.mean(y_pred_fake)
         if self.linearity_lambda > 0:
-            z_prime = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
+            z_prime = torch.randn((self.B, self.z_dim)).to(self.device)
+            z_prime = sort_minimize_dist(tensor_moving=z_prime, tensor_fixed=z)
             loss_G = loss_G + self.linearity_lambda * linearity_constraint(
                 z, z_prime, self.generator)
 
@@ -340,7 +348,7 @@ class WGAN(torch.nn.Module):
         for _ in range(self.D_iters_per_G_iter):
             x_real = x_real.to(self.device)
             with torch.no_grad():
-                z = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
+                z = torch.randn((self.B, self.z_dim)).to(self.device)
                 x_fake = self.forward_G(z)
             y_pred_real = self.forward_D(x_real).view(-1)
             y_pred_fake = self.forward_D(x_fake).view(-1)
@@ -407,12 +415,13 @@ class WGANGP(torch.nn.Module):
         return self.discriminator(x)
 
     def optimize_G(self):
-        z = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
+        z = torch.randn((self.B, self.z_dim)).to(self.device)
         x_fake = self.forward_G(z)
         y_pred_fake = self.forward_D(x_fake).view(-1)
         loss_G = -torch.mean(y_pred_fake)
         if self.linearity_lambda > 0:
-            z_prime = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
+            z_prime = torch.randn((self.B, self.z_dim)).to(self.device)
+            z_prime = sort_minimize_dist(tensor_moving=z_prime, tensor_fixed=z)
             loss_G = loss_G + self.linearity_lambda * linearity_constraint(
                 z, z_prime, self.generator)
 
@@ -424,7 +433,7 @@ class WGANGP(torch.nn.Module):
         for _ in range(self.D_iters_per_G_iter):
             x_real = x_real.to(self.device)
             with torch.no_grad():
-                z = torch.randn((self.B, self.z_dim, 1, 1)).to(self.device)
+                z = torch.randn((self.B, self.z_dim)).to(self.device)
                 x_fake = self.forward_G(z)
             y_pred_real = self.forward_D(x_real).view(-1)
             y_pred_fake = self.forward_D(x_fake).view(-1)
