@@ -108,7 +108,7 @@ class WGAN(torch.nn.Module):
             linearity_lambda: float = 0,
             linearity_include_D: bool = False,
             D_iters_per_G_iter: int = 5,
-            grad_norm: float = 0.01,  # for toy dataset (official guide)
+            grad_norm: float = 1.0,
             z_dim: int = 2,
             output_dim: int = 2,
             hidden_dim: int = 512):
@@ -207,7 +207,7 @@ class WGANGP(torch.nn.Module):
             linearity_lambda: float = 0,
             linearity_include_D: bool = False,
             D_iters_per_G_iter: int = 5,
-            gp_lambda: float = 0.1,  # for toy dataset (official guide)
+            gp_lambda: float = 10,
             z_dim: int = 2,
             output_dim: int = 2,
             hidden_dim: int = 512):

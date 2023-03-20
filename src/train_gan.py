@@ -207,14 +207,14 @@ def train(config):
                               num_images_fake=len(train_loader.dataset))
 
     # We can pre-load the real images in the format of a dataloader.
-    # evaluator.load_all_real_imgs(real_loader=val_loader, idx_in_loader=0)
+    evaluator.load_all_real_imgs(real_loader=val_loader, idx_in_loader=0)
 
     epoch_list, IS_list, FID_list = [], [], []
     best_FID = np.inf
-    for epoch_idx in tqdm(range(config.train_epoch)):
+    for epoch_idx in range(config.train_epoch):
 
         model.train()
-        for batch_idx, (x_real, _) in enumerate(train_loader):
+        for batch_idx, (x_real, _) in enumerate(tqdm(train_loader)):
             if config.in_channels == 1:
                 # Repeat the channel dimension: 1 channel -> 3 channels.
                 x_real = x_real.repeat(1, 3, 1, 1)
