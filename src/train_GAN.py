@@ -15,90 +15,7 @@ from attribute_hashmap import AttributeHashmap
 from seed import seed_everything
 
 sys.path.insert(0, import_dir + '/nn/')
-from continuity import continuity_constraint
-
-
-class LinearGAN(torch.nn.Module):
-
-    def __init__(self,
-                 learning_rate: float = 1e-4,
-                 device: torch.device = torch.device('cpu'),
-                 continuity_lambda: float = 0,
-                 input_dim: int = 2,
-                 output_dim: int = 2,
-                 hidden_dim: int = 512):
-        super(LinearGAN, self).__init__()
-
-        self.device = device
-        self.continuity_lambda = continuity_lambda
-
-        self.generator = torch.nn.Sequential(
-            torch.nn.Linear(input_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, output_dim),
-        )
-
-        self.discriminator = torch.nn.Sequential(
-            torch.nn.Linear(input_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, 1),
-            torch.nn.Flatten(),
-            torch.nn.Sigmoid(),
-        )
-
-        self.generator.to(device)
-        self.discriminator.to(device)
-
-        self.loss_fn = torch.nn.BCELoss()
-        self.ones = torch.ones(args.batch_size, device=self.device)
-        self.zeros = torch.zeros(args.batch_size, device=self.device)
-        self.opt_G = torch.optim.AdamW(self.generator.parameters(),
-                                       lr=learning_rate)
-        self.opt_D = torch.optim.AdamW(self.discriminator.parameters(),
-                                       lr=learning_rate)
-
-    def forward_G(self, x: torch.Tensor) -> torch.Tensor:
-        return self.generator(x)
-
-    def forward_D(self, x: torch.Tensor) -> torch.Tensor:
-        return self.discriminator(x)
-
-    def optimize_G(self, real_dist_gen):
-        x_real_1 = torch.from_numpy(real_dist_gen.__next__()).to(self.device)
-        x_real_2 = torch.from_numpy(real_dist_gen.__next__()).to(self.device)
-        z = torch.randn((args.batch_size, 2)).to(self.device)
-        x_fake = self.forward_G(z)
-        y_pred_fake = self.forward_D(x_fake).view(-1)
-        loss_G = self.loss_fn(y_pred_fake, self.ones)
-        if self.continuity_lambda > 0:
-            loss_G = loss_G + self.continuity_lambda * continuity_constraint(
-                x_real_1, x_real_2, self.generator)
-
-        self.opt_G.zero_grad()
-        loss_G.backward()
-        self.opt_G.step()
-
-    def optimize_D(self, real_dist_gen):
-        x_real = torch.from_numpy(real_dist_gen.__next__()).to(self.device)
-        with torch.no_grad():
-            z = torch.randn((args.batch_size, 2)).to(self.device)
-            x_fake = self.forward_G(z)
-        y_pred_real = self.forward_D(x_real).view(-1)
-        y_pred_fake = self.forward_D(x_fake).view(-1)
-        loss_D = self.loss_fn(y_pred_real, self.ones) + self.loss_fn(
-            y_pred_fake, self.zeros)
-
-        self.opt_D.zero_grad()
-        loss_D.backward()
-        self.opt_D.step()
+from toy_gans import GAN, WGAN, WGANGP
 
 
 # Dataset iterator
@@ -106,7 +23,7 @@ def real_dist_generator(dataset_name: str, batch_size: int):
     if dataset_name == '25gaussians':
 
         dataset = []
-        for _ in np.arange(100000 / 25):
+        for _ in np.arange(np.ceil(batch_size / 25)):
             for x in np.arange(-2, 3):
                 for y in np.arange(-2, 3):
                     point = np.random.randn(2) * 0.05
@@ -114,20 +31,19 @@ def real_dist_generator(dataset_name: str, batch_size: int):
                     point[1] += 2 * y
                     dataset.append(point)
         dataset = np.array(dataset, dtype='float32')
-        np.random.shuffle(dataset)
         dataset /= 2.828  # stdev
         while True:
-            for i in np.arange(len(dataset) / batch_size):
-                yield dataset[i * batch_size:(i + 1) * batch_size]
+            np.random.shuffle(dataset)
+            yield dataset[:batch_size]
 
     elif dataset_name == 'swissroll':
 
         while True:
-            data = sklearn.datasets.make_swiss_roll(n_samples=batch_size,
+            dataset = sklearn.datasets.make_swiss_roll(n_samples=batch_size,
                                                     noise=0.25)[0]
-            data = data.astype('float32')[:, [0, 2]]
-            data /= 7.5  # stdev plus a little
-            yield data
+            dataset = dataset.astype('float32')[:, [0, 2]]
+            dataset /= 7.5  # stdev plus a little
+            yield dataset
 
     elif dataset_name == '8gaussians':
 
@@ -140,7 +56,7 @@ def real_dist_generator(dataset_name: str, batch_size: int):
         centers = [(scale * x, scale * y) for x, y in centers]
         while True:
             dataset = []
-            for i in np.arange(batch_size):
+            for _ in np.arange(batch_size):
                 point = np.random.randn(2) * .02
                 center = random.choice(centers)
                 point[0] += center[0]
@@ -182,10 +98,21 @@ def train(args):
     device = torch.device('cuda:%d' %
                           args.gpu_id if torch.cuda.is_available() else 'cpu')
 
-    if args.gan_name == 'LinearGAN':
-        model = LinearGAN(learning_rate=args.learning_rate,
+    if args.gan_name == 'GAN':
+        model = GAN(learning_rate=args.learning_rate,
                           device=device,
-                          continuity_lambda=args.continuity_lambda)
+                          batch_size=args.batch_size,
+                          linearity_lambda=args.linearity_lambda)
+    elif args.gan_name == 'WGAN':
+        model = WGAN(learning_rate=args.learning_rate,
+                          device=device,
+                          batch_size=args.batch_size,
+                          linearity_lambda=args.linearity_lambda)
+    elif args.gan_name == 'WGANGP':
+        model = WGANGP(learning_rate=args.learning_rate,
+                          device=device,
+                          batch_size=args.batch_size,
+                          linearity_lambda=args.linearity_lambda)
 
     real_dist_gen = real_dist_generator(dataset_name=args.dataset_name,
                                         batch_size=args.batch_size)
@@ -216,8 +143,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--dataset_name', type=str, default='8gaussians')
-    parser.add_argument('--gan_name', type=str, default='LinearGAN')
-    parser.add_argument('--continuity_lambda', type=float, default=0)
+    parser.add_argument('--gan_name', type=str, default='GAN')
+    parser.add_argument('--linearity_lambda', type=float, default=0)
     parser.add_argument('--gpu_id', type=int, default=0)
     parser.add_argument('--learning_rate', type=float, default=1e-4)
     parser.add_argument('--iters', type=int, default=100000)
@@ -231,5 +158,5 @@ if __name__ == '__main__':
 
     os.makedirs('../results/figures/', exist_ok=True)
     args.fig_save_path = '../results/figures/toy-%s-%s-lambda=%s.png' % (
-        args.dataset_name, args.gan_name, args.continuity_lambda)
+        args.dataset_name, args.gan_name, args.linearity_lambda)
     train(args)

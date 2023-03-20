@@ -1,7 +1,7 @@
 import torch
 
 
-def continuity_constraint(x1: torch.Tensor, x2: torch.Tensor,
+def linearity_constraint(x1: torch.Tensor, x2: torch.Tensor,
                           f: torch.nn.Module) -> torch.Tensor:
     '''
     $||f(x2) - f(x1) - <\nabla_x1 f(x1), x2 - x1>||_2^2$

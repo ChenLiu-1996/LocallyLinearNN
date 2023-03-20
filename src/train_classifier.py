@@ -19,7 +19,7 @@ from seed import seed_everything
 
 sys.path.insert(0, import_dir + '/nn/')
 from aug import PairedAugmentation
-from continuity import continuity_constraint
+from linearity import linearity_constraint
 from models import ResNet18, SmallConvNet
 from scheduler import LinearWarmupCosineAnnealingLR
 
@@ -206,9 +206,9 @@ def train(config: AttributeHashmap) -> None:
             loss = 1/2 * (loss_fn_classification(y_pred1, y_true) + \
                           loss_fn_classification(y_pred2, y_true))
 
-            if config.continuity_lambda > 0:
+            if config.linearity_lambda > 0:
                 loss = loss + \
-                    config.continuity_lambda * continuity_constraint(x_aug1, x_aug2, model)
+                    config.linearity_lambda * linearity_constraint(x_aug1, x_aug2, model)
 
             state_dict['train_loss'] += loss.item() * B
             correct += torch.sum(

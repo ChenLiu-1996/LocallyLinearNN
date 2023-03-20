@@ -1,4 +1,4 @@
-# Improving Continuity of Neural Networks
+# Improving Linearity of Neural Networks
 
 Chen Liu (chen.liu.cl2482@yale.edu)
 

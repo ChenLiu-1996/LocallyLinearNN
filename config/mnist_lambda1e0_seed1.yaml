@@ -11,4 +11,4 @@ weight_decay: 1e-6
 num_workers: 8
 dataset: 'mnist'
 random_seed: 1
-continuity_lambda: 1
+linearity_lambda: 1
