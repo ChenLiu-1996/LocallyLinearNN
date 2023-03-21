@@ -28,51 +28,49 @@ def linearity_constraint(x1: torch.Tensor, x2: torch.Tensor,
         # f() is a classifer or point generator
         B, d = f_x1_grad.shape
 
-        df_dx1 = torch.autograd.grad(
-            outputs=[f_x1_grad[:, d_idx] for d_idx in range(d)],
-            inputs=[x1_grad for _ in range(d)],
-            grad_outputs=[torch.ones(B).to(device) for _ in range(d)],
-            create_graph=True,
-            retain_graph=True)
+        # shape: [B x d, x1.shape[1:]]
+        df_dx1 = torch.cat([
+            torch.autograd.grad(outputs=f_x1_grad[:, i],
+                                inputs=x1_grad,
+                                grad_outputs=torch.ones(B).to(device),
+                                create_graph=True,
+                                retain_graph=True)[0] for i in range(d)
+        ])
+        df_dx1 = df_dx1.reshape(B, d, *x1.shape[1:])
 
-        df_dx1 = torch.cat(df_dx1).reshape(B, d, *x1.shape[1:])
-
+        # Sum over excessive x dimension (after batch dimension).
         # shape: [B, d]
-        inner_product = torch.sum(df_dx1 * (x2 - x1)[:, None, :].repeat(
-                1, d, *[1 for _ in range(len(x1.shape[1:]))]),
-            dim=list(torch.arange(len(df_dx1.shape))[2:]))
+        inner_product = torch.sum(df_dx1 * (x2 - x1)[:, None, ...].repeat(
+            1, d, *[1 for _ in range(len(x1.shape[1:]))]),
+                                  dim=list(
+                                      torch.arange(len(df_dx1.shape))[2:]))
+        import pdb
+        pdb.set_trace()
 
     elif f_output_shape == 4:
         # f() is an image generator
         B, C, H, W = f_x1_grad.shape
 
-        df_dx1 = torch.autograd.grad(outputs=[
-            f_x1_grad[:, C_idx, H_idx, W_idx] for C_idx in range(C)
-            for H_idx in range(H) for W_idx in range(W)
-        ],
-                                     inputs=[
-                                         x1_grad for _ in range(C)
-                                         for _ in range(H) for _ in range(W)
-                                     ],
-                                     grad_outputs=[
-                                         torch.ones(B).to(device)
-                                         for _ in range(C) for _ in range(H)
-                                         for _ in range(W)
-                                     ],
-                                     create_graph=True,
-                                     retain_graph=True)
+        # shape: [B x C x H x W, x1.shape[1:]]
+        df_dx1 = torch.cat([
+            torch.autograd.grad(outputs=f_x1_grad[:, i, j, k],
+                                inputs=x1_grad,
+                                grad_outputs=torch.ones(B).to(device),
+                                create_graph=True,
+                                retain_graph=True)[0] for i in range(C)
+            for j in range(H) for k in range(W)
+        ])
+        df_dx1 = df_dx1.reshape(B, C, H, W, *x1.shape[1:])
 
-        df_dx1 = torch.cat(df_dx1).reshape(B, C, H, W, *x1.shape[1:])
-
+        # Sum over excessive x dimension (after batch dimension).
         # shape: [B, C, H, W]
         inner_product = torch.sum(
-            df_dx1 * (x2 - x1)[:, None, None, None, :].repeat(
+            df_dx1 * (x2 - x1)[:, None, None, None, ...].repeat(
                 1, C, H, W, *[1 for _ in range(len(x1.shape[1:]))]),
-            dim=-1)
+            dim=list(torch.arange(len(df_dx1.shape))[4:]))
 
     # shape: [B]
-    constraint = torch.norm(f(x2).detach() - f(x1).detach() -
-                            inner_product,
+    constraint = torch.norm(f(x2).detach() - f(x1).detach() - inner_product,
                             p=2,
                             dim=1)
 
@@ -85,18 +83,16 @@ def sort_minimize_dist(tensor_moving: torch.Tensor,
     Might be useful if you want to reorganize the input `x`s such that
     `x1 - x2` represents a local perturbation.
     '''
-    # Make sure not to modify the input tensors.
-    tensor_moving_ = tensor_moving.clone()
-    tensor_fixed_ = tensor_fixed.clone()
 
     with torch.no_grad():
-        assert tensor_moving_.shape == tensor_fixed_.shape
-        if len(tensor_fixed_.shape) > 2:
-            B = tensor_fixed_.shape[0]
-            tensor_moving_ = tensor_moving_.reshape(B, -1)
-            tensor_fixed_ = tensor_fixed_.reshape(B, -1)
+        assert tensor_moving.shape == tensor_fixed.shape
+        if len(tensor_moving.shape) > 2:
+            B = tensor_moving.shape[0]
+            # Make sure not to modify the input tensors.
+            tensor_moving = tensor_moving.clone().reshape(B, -1)
+            tensor_fixed = tensor_fixed.clone().reshape(B, -1)
 
-        cost = torch.cdist(tensor_fixed_, tensor_moving_).cpu()
+        cost = torch.cdist(tensor_fixed, tensor_moving).cpu()
         _, col_inds = linear_sum_assignment(cost)
-        tensor_moving_ = tensor_moving_[col_inds]
-    return tensor_moving_
+        tensor_moving = tensor_moving[col_inds]
+    return tensor_moving

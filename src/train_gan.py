@@ -207,7 +207,7 @@ def train(config):
                               num_images_fake=len(train_loader.dataset))
 
     # We can pre-load the real images in the format of a dataloader.
-    evaluator.load_all_real_imgs(real_loader=val_loader, idx_in_loader=0)
+    # evaluator.load_all_real_imgs(real_loader=val_loader, idx_in_loader=0)
 
     epoch_list, IS_list, FID_list = [], [], []
     best_FID = np.inf

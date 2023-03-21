@@ -30,7 +30,7 @@ def real_dist_generator(dataset_name: str, batch_size: int):
         while True:
             dataset = []
             for _ in np.arange(batch_size):
-                point = np.random.randn(2) * 0.02
+                point = np.random.randn(2) * 0.05
                 center = random.choice(centers)
                 point[0] += center[0]
                 point[1] += center[1]
