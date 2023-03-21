@@ -43,7 +43,7 @@ def linearity_constraint(x1: torch.Tensor, x2: torch.Tensor,
         inner_product = torch.sum(df_dx1 * (x2 - x1)[:, None, ...].repeat(
             1, d, *[1 for _ in range(len(x1.shape[1:]))]),
                                   dim=list(
-                                      torch.arange(len(x1.shape))[1:]))
+                                      torch.arange(len(df_dx1.shape))[2:]))
 
     elif f_output_shape == 4:
         # f() is an image generator
@@ -65,7 +65,7 @@ def linearity_constraint(x1: torch.Tensor, x2: torch.Tensor,
         inner_product = torch.sum(
             df_dx1 * (x2 - x1)[:, None, None, None, ...].repeat(
                 1, C, H, W, *[1 for _ in range(len(x1.shape[1:]))]),
-            dim=list(torch.arange(len(x1.shape))[1:]))
+            dim=list(torch.arange(len(df_dx1.shape))[4:]))
 
     # shape: [B]
     constraint = torch.norm(f(x2).detach() - f(x1).detach() - inner_product,
