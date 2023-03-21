@@ -88,7 +88,10 @@ def generate_image(real_dist_gen,
 
     real_dist = real_dist_gen.__next__()
     ax.scatter(real_dist[:, 0], real_dist[:, 1], c='orange', marker='+')
-    ax.scatter(fake_samples[:, 0], fake_samples[:, 1], c='firebrick', marker='+')
+    ax.scatter(fake_samples[:, 0],
+               fake_samples[:, 1],
+               c='firebrick',
+               marker='+')
 
 
 def train(args):

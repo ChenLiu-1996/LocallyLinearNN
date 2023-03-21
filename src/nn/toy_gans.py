@@ -3,6 +3,47 @@ from gradient_penalty import gradient_penalty
 from linearity import linearity_constraint, sort_minimize_dist
 
 
+class Generator(torch.nn.Module):
+
+    def __init__(self,
+                 z_dim: int = 2,
+                 output_dim: int = 2,
+                 hidden_dim: int = 512):
+        super(Generator, self).__init__()
+        self.model = torch.nn.Sequential(
+            torch.nn.Linear(z_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, output_dim),
+        )
+
+    def forward(self, x):
+        return self.model(x)
+
+
+class Discriminator(torch.nn.Module):
+
+    def __init__(self, output_dim: int = 2, hidden_dim: int = 512):
+        super(Discriminator, self).__init__()
+
+        self.model = torch.nn.Sequential(
+            torch.nn.Linear(output_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, 1),
+            torch.nn.Flatten(),
+        )
+
+    def forward(self, x):
+        return self.model(x)
+
+
 class GAN(torch.nn.Module):
 
     def __init__(self,
@@ -22,26 +63,12 @@ class GAN(torch.nn.Module):
         self.B = batch_size
         self.z_dim = z_dim
 
-        self.generator = torch.nn.Sequential(
-            torch.nn.Linear(z_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, output_dim),
-        )
+        self.generator = Generator(z_dim=z_dim,
+                                   output_dim=output_dim,
+                                   hidden_dim=hidden_dim)
 
-        self.discriminator = torch.nn.Sequential(
-            torch.nn.Linear(output_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, 1),
-            torch.nn.Flatten(),
-        )
+        self.discriminator = Discriminator(output_dim=output_dim,
+                                           hidden_dim=hidden_dim)
 
         self.generator.to(device)
         self.discriminator.to(device)
@@ -100,18 +127,17 @@ class GAN(torch.nn.Module):
 
 class WGAN(torch.nn.Module):
 
-    def __init__(
-            self,
-            learning_rate: float = 1e-4,
-            device: torch.device = torch.device('cpu'),
-            batch_size: int = 4,
-            linearity_lambda: float = 0,
-            linearity_include_D: bool = False,
-            D_iters_per_G_iter: int = 5,
-            grad_norm: float = 1.0,
-            z_dim: int = 2,
-            output_dim: int = 2,
-            hidden_dim: int = 512):
+    def __init__(self,
+                 learning_rate: float = 1e-4,
+                 device: torch.device = torch.device('cpu'),
+                 batch_size: int = 4,
+                 linearity_lambda: float = 0,
+                 linearity_include_D: bool = False,
+                 D_iters_per_G_iter: int = 5,
+                 grad_norm: float = 1.0,
+                 z_dim: int = 2,
+                 output_dim: int = 2,
+                 hidden_dim: int = 512):
         super(WGAN, self).__init__()
 
         self.device = device
@@ -122,26 +148,12 @@ class WGAN(torch.nn.Module):
         self.grad_norm = grad_norm
         self.z_dim = z_dim
 
-        self.generator = torch.nn.Sequential(
-            torch.nn.Linear(z_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, output_dim),
-        )
+        self.generator = Generator(z_dim=z_dim,
+                                   output_dim=output_dim,
+                                   hidden_dim=hidden_dim)
 
-        self.discriminator = torch.nn.Sequential(
-            torch.nn.Linear(output_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, 1),
-            torch.nn.Flatten(),
-        )
+        self.discriminator = Discriminator(output_dim=output_dim,
+                                           hidden_dim=hidden_dim)
 
         self.generator.to(device)
         self.discriminator.to(device)
@@ -207,7 +219,8 @@ class WGANGP(torch.nn.Module):
             linearity_lambda: float = 0,
             linearity_include_D: bool = False,
             D_iters_per_G_iter: int = 5,
-            gp_lambda: float = 10,
+            gp_lambda:
+        float = 0.1,  # [official guide] converge faster on toy data
             z_dim: int = 2,
             output_dim: int = 2,
             hidden_dim: int = 512):
@@ -221,26 +234,12 @@ class WGANGP(torch.nn.Module):
         self.gp_lambda = gp_lambda
         self.D_iters_per_G_iter = D_iters_per_G_iter
 
-        self.generator = torch.nn.Sequential(
-            torch.nn.Linear(z_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, output_dim),
-        )
+        self.generator = Generator(z_dim=z_dim,
+                                   output_dim=output_dim,
+                                   hidden_dim=hidden_dim)
 
-        self.discriminator = torch.nn.Sequential(
-            torch.nn.Linear(output_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, 1),
-            torch.nn.Flatten(),
-        )
+        self.discriminator = Discriminator(output_dim=output_dim,
+                                           hidden_dim=hidden_dim)
 
         self.generator.to(device)
         self.discriminator.to(device)
