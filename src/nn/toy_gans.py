@@ -127,17 +127,18 @@ class GAN(torch.nn.Module):
 
 class WGAN(torch.nn.Module):
 
-    def __init__(self,
-                 learning_rate: float = 1e-4,
-                 device: torch.device = torch.device('cpu'),
-                 batch_size: int = 4,
-                 linearity_lambda: float = 0,
-                 linearity_include_D: bool = False,
-                 D_iters_per_G_iter: int = 5,
-                 grad_norm: float = 1.0,
-                 z_dim: int = 2,
-                 output_dim: int = 2,
-                 hidden_dim: int = 512):
+    def __init__(
+            self,
+            learning_rate: float = 1e-4,
+            device: torch.device = torch.device('cpu'),
+            batch_size: int = 4,
+            linearity_lambda: float = 0,
+            linearity_include_D: bool = False,
+            D_iters_per_G_iter: int = 5,
+            grad_norm: float = 0.01,  # official version
+            z_dim: int = 2,
+            output_dim: int = 2,
+            hidden_dim: int = 512):
         super(WGAN, self).__init__()
 
         self.device = device
@@ -211,19 +212,17 @@ class WGAN(torch.nn.Module):
 
 class WGANGP(torch.nn.Module):
 
-    def __init__(
-            self,
-            learning_rate: float = 1e-4,
-            device: torch.device = torch.device('cpu'),
-            batch_size: int = 4,
-            linearity_lambda: float = 0,
-            linearity_include_D: bool = False,
-            D_iters_per_G_iter: int = 5,
-            gp_lambda:
-        float = 0.1,  # [official guide] converge faster on toy data
-            z_dim: int = 2,
-            output_dim: int = 2,
-            hidden_dim: int = 512):
+    def __init__(self,
+                 learning_rate: float = 1e-4,
+                 device: torch.device = torch.device('cpu'),
+                 batch_size: int = 4,
+                 linearity_lambda: float = 0,
+                 linearity_include_D: bool = False,
+                 D_iters_per_G_iter: int = 5,
+                 gp_lambda: float = 0.1,
+                 z_dim: int = 2,
+                 output_dim: int = 2,
+                 hidden_dim: int = 512):
         super(WGANGP, self).__init__()
 
         self.device = device
@@ -231,6 +230,7 @@ class WGANGP(torch.nn.Module):
         self.linearity_include_D = linearity_include_D
         self.B = batch_size
         self.z_dim = z_dim
+        # official recommendation: decrease `gp_lambda` to converge faster on toy data
         self.gp_lambda = gp_lambda
         self.D_iters_per_G_iter = D_iters_per_G_iter
 

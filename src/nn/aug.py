@@ -22,10 +22,9 @@ class PairedAugmentation:
         self.pos_invariant_aug = transforms.Compose([
             transforms.RandomApply([
                 transforms.ColorJitter(
-                    brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1)
+                    brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1)
             ],
                                    p=0.8),
-            transforms.RandomGrayscale(p=0.2),
             transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std)
