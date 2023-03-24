@@ -145,9 +145,11 @@ class WGAN(torch.nn.Module):
         self.linearity_lambda = linearity_lambda
         self.linearity_include_D = linearity_include_D
         self.B = batch_size
-        self.D_iters_per_G_iter = D_iters_per_G_iter
         self.grad_norm = grad_norm
         self.z_dim = z_dim
+
+        self.D_iters_per_G_iter = D_iters_per_G_iter
+        self.G_iter_count = 0
 
         self.generator = Generator(z_dim=z_dim,
                                    output_dim=output_dim,
@@ -160,9 +162,13 @@ class WGAN(torch.nn.Module):
         self.discriminator.to(device)
 
         self.opt_G = torch.optim.AdamW(self.generator.parameters(),
-                                       lr=learning_rate)
+                                       lr=learning_rate,
+                                       betas=(0.1, 0.5),
+                                       amsgrad=True)
         self.opt_D = torch.optim.AdamW(self.discriminator.parameters(),
-                                       lr=learning_rate)
+                                       lr=learning_rate,
+                                       betas=(0.1, 0.5),
+                                       amsgrad=True)
 
     def forward_G(self, z: torch.Tensor) -> torch.Tensor:
         return self.generator(z)
@@ -171,43 +177,45 @@ class WGAN(torch.nn.Module):
         return self.discriminator(x)
 
     def optimize_G(self):
-        z = torch.randn((self.B, self.z_dim)).to(self.device)
-        x_fake = self.forward_G(z)
-        y_pred_fake = self.forward_D(x_fake).view(-1)
-        loss_G = -torch.mean(y_pred_fake)
-        if self.linearity_lambda > 0:
-            z_prime = torch.randn((self.B, self.z_dim)).to(self.device)
-            z_prime = sort_minimize_dist(tensor_moving=z_prime, tensor_fixed=z)
-            loss_G = loss_G + self.linearity_lambda * linearity_constraint(
-                z, z_prime, self.generator)
+        if self.G_iter_count % self.D_iters_per_G_iter == 0:
+            z = torch.randn((self.B, self.z_dim)).to(self.device)
+            x_fake = self.forward_G(z)
+            y_pred_fake = self.forward_D(x_fake).view(-1)
+            loss_G = -torch.mean(y_pred_fake)
+            if self.linearity_lambda > 0:
+                z_prime = torch.randn((self.B, self.z_dim)).to(self.device)
+                z_prime = sort_minimize_dist(tensor_moving=z_prime,
+                                             tensor_fixed=z)
+                loss_G = loss_G + self.linearity_lambda * linearity_constraint(
+                    z, z_prime, self.generator)
 
-        self.opt_G.zero_grad()
-        loss_G.backward()
-        self.opt_G.step()
+            self.opt_G.zero_grad()
+            loss_G.backward()
+            self.opt_G.step()
+        self.G_iter_count += 1
 
     def optimize_D(self, real_dist_gen):
-        for _ in range(self.D_iters_per_G_iter):
-            x_real = torch.from_numpy(real_dist_gen.__next__()).to(self.device)
-            with torch.no_grad():
-                z = torch.randn((self.B, self.z_dim)).to(self.device)
-                x_fake = self.forward_G(z)
-            y_pred_real = self.forward_D(x_real).view(-1)
-            y_pred_fake = self.forward_D(x_fake).view(-1)
-            loss_D = torch.mean(y_pred_fake) - torch.mean(y_pred_real)
-            if self.linearity_include_D:
-                assert self.linearity_lambda > 0
-                x_real_prime = torch.from_numpy(real_dist_gen.__next__()).to(
-                    self.device)
-                x_real_prime = sort_minimize_dist(tensor_moving=x_real_prime,
-                                                  tensor_fixed=x_real)
-                loss_D = loss_D + self.linearity_lambda * linearity_constraint(
-                    x_real, x_real_prime, self.discriminator)
+        x_real = torch.from_numpy(real_dist_gen.__next__()).to(self.device)
+        with torch.no_grad():
+            z = torch.randn((self.B, self.z_dim)).to(self.device)
+            x_fake = self.forward_G(z)
+        y_pred_real = self.forward_D(x_real).view(-1)
+        y_pred_fake = self.forward_D(x_fake).view(-1)
+        loss_D = torch.mean(y_pred_fake) - torch.mean(y_pred_real)
+        if self.linearity_include_D:
+            assert self.linearity_lambda > 0
+            x_real_prime = torch.from_numpy(real_dist_gen.__next__()).to(
+                self.device)
+            x_real_prime = sort_minimize_dist(tensor_moving=x_real_prime,
+                                              tensor_fixed=x_real)
+            loss_D = loss_D + self.linearity_lambda * linearity_constraint(
+                x_real, x_real_prime, self.discriminator)
 
-            self.opt_D.zero_grad()
-            loss_D.backward()
-            torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(),
-                                           max_norm=self.grad_norm)
-            self.opt_D.step()
+        self.opt_D.zero_grad()
+        loss_D.backward()
+        torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(),
+                                       max_norm=self.grad_norm)
+        self.opt_D.step()
 
 
 class WGANGP(torch.nn.Module):
@@ -230,9 +238,11 @@ class WGANGP(torch.nn.Module):
         self.linearity_include_D = linearity_include_D
         self.B = batch_size
         self.z_dim = z_dim
-        # official recommendation: decrease `gp_lambda` to converge faster on toy data
+        # [official guide] keep `gp_lambda` small to fit faster on toy data
         self.gp_lambda = gp_lambda
+
         self.D_iters_per_G_iter = D_iters_per_G_iter
+        self.G_iter_count = 0
 
         self.generator = Generator(z_dim=z_dim,
                                    output_dim=output_dim,
@@ -245,9 +255,13 @@ class WGANGP(torch.nn.Module):
         self.discriminator.to(device)
 
         self.opt_G = torch.optim.AdamW(self.generator.parameters(),
-                                       lr=learning_rate)
+                                       lr=learning_rate,
+                                       betas=(0.9, 0.999),
+                                       amsgrad=True)
         self.opt_D = torch.optim.AdamW(self.discriminator.parameters(),
-                                       lr=learning_rate)
+                                       lr=learning_rate,
+                                       betas=(0.5, 0.9),
+                                       amsgrad=True)
 
     def forward_G(self, z: torch.Tensor) -> torch.Tensor:
         return self.generator(z)
@@ -256,41 +270,43 @@ class WGANGP(torch.nn.Module):
         return self.discriminator(x)
 
     def optimize_G(self):
-        z = torch.randn((self.B, self.z_dim)).to(self.device)
-        x_fake = self.forward_G(z)
-        y_pred_fake = self.forward_D(x_fake).view(-1)
-        loss_G = -torch.mean(y_pred_fake)
-        if self.linearity_lambda > 0:
-            z_prime = torch.randn((self.B, self.z_dim)).to(self.device)
-            z_prime = sort_minimize_dist(tensor_moving=z_prime, tensor_fixed=z)
-            loss_G = loss_G + self.linearity_lambda * linearity_constraint(
-                z, z_prime, self.generator)
+        if self.G_iter_count % self.D_iters_per_G_iter == 0:
+            z = torch.randn((self.B, self.z_dim)).to(self.device)
+            x_fake = self.forward_G(z)
+            y_pred_fake = self.forward_D(x_fake).view(-1)
+            loss_G = -torch.mean(y_pred_fake)
+            if self.linearity_lambda > 0:
+                z_prime = torch.randn((self.B, self.z_dim)).to(self.device)
+                z_prime = sort_minimize_dist(tensor_moving=z_prime,
+                                             tensor_fixed=z)
+                loss_G = loss_G + self.linearity_lambda * linearity_constraint(
+                    z, z_prime, self.generator)
 
-        self.opt_G.zero_grad()
-        loss_G.backward()
-        self.opt_G.step()
+            self.opt_G.zero_grad()
+            loss_G.backward()
+            self.opt_G.step()
+        self.G_iter_count += 1
 
     def optimize_D(self, real_dist_gen):
-        for _ in range(self.D_iters_per_G_iter):
-            x_real = torch.from_numpy(real_dist_gen.__next__()).to(self.device)
-            with torch.no_grad():
-                z = torch.randn((self.B, self.z_dim)).to(self.device)
-                x_fake = self.forward_G(z)
-            y_pred_real = self.forward_D(x_real).view(-1)
-            y_pred_fake = self.forward_D(x_fake).view(-1)
-            gp = gradient_penalty(x_real.detach(), x_fake.detach(),
-                                  self.discriminator)
-            loss_D = torch.mean(y_pred_fake) - torch.mean(
-                y_pred_real) + self.gp_lambda * gp
-            if self.linearity_include_D:
-                assert self.linearity_lambda > 0
-                x_real_prime = torch.from_numpy(real_dist_gen.__next__()).to(
-                    self.device)
-                x_real_prime = sort_minimize_dist(tensor_moving=x_real_prime,
-                                                  tensor_fixed=x_real)
-                loss_D = loss_D + self.linearity_lambda * linearity_constraint(
-                    x_real, x_real_prime, self.discriminator)
+        x_real = torch.from_numpy(real_dist_gen.__next__()).to(self.device)
+        with torch.no_grad():
+            z = torch.randn((self.B, self.z_dim)).to(self.device)
+            x_fake = self.forward_G(z)
+        y_pred_real = self.forward_D(x_real).view(-1)
+        y_pred_fake = self.forward_D(x_fake).view(-1)
+        gp = gradient_penalty(x_real.detach(), x_fake.detach(),
+                              self.discriminator)
+        loss_D = torch.mean(y_pred_fake) - torch.mean(
+            y_pred_real) + self.gp_lambda * gp
+        if self.linearity_include_D:
+            assert self.linearity_lambda > 0
+            x_real_prime = torch.from_numpy(real_dist_gen.__next__()).to(
+                self.device)
+            x_real_prime = sort_minimize_dist(tensor_moving=x_real_prime,
+                                              tensor_fixed=x_real)
+            loss_D = loss_D + self.linearity_lambda * linearity_constraint(
+                x_real, x_real_prime, self.discriminator)
 
-            self.opt_D.zero_grad()
-            loss_D.backward()
-            self.opt_D.step()
+        self.opt_D.zero_grad()
+        loss_D.backward()
+        self.opt_D.step()

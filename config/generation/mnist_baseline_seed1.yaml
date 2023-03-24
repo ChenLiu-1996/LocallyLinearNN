@@ -1,0 +1,15 @@
+checkpoint_dir: '$ROOT_DIR/checkpoints/generation/'
+log_dir: '$ROOT_DIR/logs/generation/'
+output_save_dir: '$ROOT_DIR/results/generation/'
+dataset_dir: '$ROOT_DIR/data/mnist/'
+gan_name: 'GAN'
+train_epoch: 100
+patience: 10
+plot_interval: 300
+batch_size: 64
+z_dim: 16
+learning_rate: 1e-4
+num_workers: 2
+dataset: 'mnist'
+random_seed: 1
+linearity_lambda: 0

@@ -28,15 +28,14 @@ def linearity_constraint(x1: torch.Tensor, x2: torch.Tensor,
         # f() is a classifer or point generator
         B, d = f_x1_grad.shape
 
-        # shape: [B * d, x1.shape[1:]]
+        # shape: [B, d, x1.shape[1:]]
         df_dx1 = torch.cat([
             torch.autograd.grad(outputs=f_x1_grad[:, i],
                                 inputs=x1_grad,
                                 grad_outputs=torch.ones(B).to(device),
                                 create_graph=True,
-                                retain_graph=True)[0] for i in range(d)
-        ])
-        df_dx1 = df_dx1.reshape(B, d, *x1.shape[1:])
+                                retain_graph=True)[0][:, None, ...] for i in range(d)
+        ], dim=1)
 
         # Sum over excessive `x` dimension (after batch dimension).
         # shape: [B, d]
@@ -49,15 +48,16 @@ def linearity_constraint(x1: torch.Tensor, x2: torch.Tensor,
         # f() is an image generator
         B, C, H, W = f_x1_grad.shape
 
-        # shape: [B * C * H * W, x1.shape[1:]]
+        # shape: [B, C * H * W, x1.shape[1:]]
         df_dx1 = torch.cat([
             torch.autograd.grad(outputs=f_x1_grad[:, i, j, k],
                                 inputs=x1_grad,
                                 grad_outputs=torch.ones(B).to(device),
                                 create_graph=True,
-                                retain_graph=True)[0] for i in range(C)
+                                retain_graph=True)[0][:, None, ...] for i in range(C)
             for j in range(H) for k in range(W)
-        ])
+        ], dim=1)
+
         df_dx1 = df_dx1.reshape(B, C, H, W, *x1.shape[1:])
 
         # Sum over excessive `x` dimension (after batch dimension).
