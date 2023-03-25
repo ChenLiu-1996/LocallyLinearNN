@@ -63,6 +63,14 @@ def real_dist_generator(dataset_name: str, batch_size: int):
             dataset /= 7.5  # stdev plus a little
             yield dataset
 
+    elif dataset_name == 'scurve':
+
+        while True:
+            dataset = sklearn.datasets.make_s_curve(n_samples=batch_size,
+                                                       noise=0.12)[0]
+            dataset = dataset.astype('float32')[:, [0, 2]]
+            dataset /= 1.2  # stdev plus a little
+            yield dataset
 
 def generate_image(real_dist_gen,
                    model,

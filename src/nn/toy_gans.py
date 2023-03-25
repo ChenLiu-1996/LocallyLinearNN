@@ -163,11 +163,11 @@ class WGAN(torch.nn.Module):
 
         self.opt_G = torch.optim.AdamW(self.generator.parameters(),
                                        lr=learning_rate,
-                                       betas=(0.1, 0.5),
+                                       betas=(0.01, 0.1),
                                        amsgrad=True)
         self.opt_D = torch.optim.AdamW(self.discriminator.parameters(),
                                        lr=learning_rate,
-                                       betas=(0.1, 0.5),
+                                       betas=(0.01, 0.1),
                                        amsgrad=True)
 
     def forward_G(self, z: torch.Tensor) -> torch.Tensor:
@@ -256,11 +256,11 @@ class WGANGP(torch.nn.Module):
 
         self.opt_G = torch.optim.AdamW(self.generator.parameters(),
                                        lr=learning_rate,
-                                       betas=(0.9, 0.999),
+                                       betas=(0.01, 0.1),
                                        amsgrad=True)
         self.opt_D = torch.optim.AdamW(self.discriminator.parameters(),
                                        lr=learning_rate,
-                                       betas=(0.5, 0.9),
+                                       betas=(0.01, 0.1),
                                        amsgrad=True)
 
     def forward_G(self, z: torch.Tensor) -> torch.Tensor:
