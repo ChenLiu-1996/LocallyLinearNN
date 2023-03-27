@@ -149,6 +149,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset_name', type=str, default='8gaussians')
     parser.add_argument('--gan_name', type=str, default='GAN')
     parser.add_argument('--linearity_lambda', type=float, default=0)
+    parser.add_argument('--constraint_power', type=int, default=1)
     parser.add_argument('--linearity_include_D', action='store_true')
     parser.add_argument('--gpu_id', type=int, default=0)
     parser.add_argument('--learning_rate', type=float, default=1e-4)
@@ -162,8 +163,8 @@ if __name__ == '__main__':
     seed_everything(args.random_seed)
 
     os.makedirs('../results/toy_generation/figures/', exist_ok=True)
-    args.fig_save_path = '../results/toy_generation/figures/toy-%s-%s-lambda=%s%s.png' % (
+    args.fig_save_path = '../results/toy_generation/figures/toy-%s-%s-lambda=%s%s-p%s.png' % (
         args.dataset_name, args.gan_name,
-        'NA' if args.linearity_lambda == 0 else args.linearity_lambda,
+        'NA' if args.linearity_lambda == 0 else args.linearity_lambda, args.constraint_power,
         '-LLGandD' if args.linearity_include_D is True else '')
     train(args)

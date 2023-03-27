@@ -3,9 +3,9 @@ from scipy.optimize import linear_sum_assignment
 
 
 def linearity_constraint(x1: torch.Tensor, x2: torch.Tensor,
-                         f: torch.nn.Module) -> torch.Tensor:
+                         f: torch.nn.Module, constraint_power: int = 1) -> torch.Tensor:
     '''
-    $||f(x2) - f(x1) - <\nabla_x1 f(x1), x2 - x1>||_2^2$
+    $||f(x2) - f(x1) - <\nabla_x1 f(x1), x2 - x1>||_2$
 
     Currently only support 2 senarios:
         f() is a classifier / point generator -> f output shape: [B, d]
@@ -69,7 +69,7 @@ def linearity_constraint(x1: torch.Tensor, x2: torch.Tensor,
 
     # shape: [B]
     constraint = torch.norm(f(x2).detach() - f(x1).detach() - inner_product,
-                            p=2,
+                            p=constraint_power,
                             dim=1)
 
     return torch.mean(constraint)
