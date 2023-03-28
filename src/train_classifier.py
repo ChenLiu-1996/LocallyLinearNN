@@ -208,7 +208,7 @@ def train(config: AttributeHashmap) -> None:
 
             if config.linearity_lambda > 0:
                 loss = loss + \
-                    config.linearity_lambda * linearity_constraint(x_aug1, x_aug2, model, constraint_power=config.constraint_power)
+                    config.linearity_lambda * linearity_constraint(x_aug1, x_aug2, model, linearity_power=config.linearity_power)
 
             state_dict['train_loss'] += loss.item() * B
             correct += torch.sum(
